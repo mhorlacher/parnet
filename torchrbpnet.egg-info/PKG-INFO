@@ -1,0 +1,8 @@
+Metadata-Version: 2.1
+Name: torchrbpnet
+Version: 0.1.0
+Summary: RBPNet
+Author: Marc Horlacher
+Author-email: marc.horlacher@gmail.com
+License: MIT
+License-File: LICENSE
