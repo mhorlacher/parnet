@@ -21,9 +21,9 @@ setup(name='torchrbpnet',
       #       ('configs', ['rbpnet/configs/config.modisco.gin'])
       #       ],
       #package_data={'notebooks': ['notebooks/*.ipynb']},
-      # entry_points = {
-      #       'console_scripts': [
-      #             'rbpnet=rbpnet.__main__:main',
-      #       ],
-      # },
+      entry_points = {
+            'console_scripts': [
+                  'torchrbpnet=torchrbpnet.__main__:main',
+            ],
+      },
       zip_safe=False)

@@ -1,4 +1,17 @@
 # %%
+__version__ = '0.1.0'
+
+# Disable tensorflow INFO and WARNING log messages
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2' # This needs to be done *before* tensorflow is imported. 
+
+# %%
+# Disable absl INFO and WARNING log messages
+from absl import logging as absl_logging
+absl_logging.set_verbosity(absl_logging.ERROR)
+
+
+# %%
 import tensorflow as tf
 
 physical_devices = tf.config.list_physical_devices('GPU')
