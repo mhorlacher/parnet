@@ -77,8 +77,13 @@ def _make_loggers(output_path):
 # %%
 @gin.configurable()
 def train(tfrecord, validation_tfrecord, output_path, network=None, **kwargs):
-    dataloader_train = dummy_dataloader(5)
-    dataloader_val = dummy_dataloader(5)
+    # dataloader_train = dummy_dataloader(5)
+    # dataloader_val = dummy_dataloader(5)
+    dataloader_train = tfrecord_to_dataloader(tfrecord)
+    if validation_tfrecord is not None:
+        dataloader_val = tfrecord_to_dataloader(validation_tfrecord)
+    else:
+        dataloader_val = None
 
     trainer = pl.Trainer(
         default_root_dir=output_path, 

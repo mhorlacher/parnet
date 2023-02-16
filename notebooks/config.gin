@@ -3,4 +3,4 @@ from torchrbpnet import networks
 train.network = @networks.MultiRBPNet()
 train.max_epochs = 1
 
-networks.MultiRBPNet.n_tasks = 7
+networks.MultiRBPNet.n_tasks = 223
