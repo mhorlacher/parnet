@@ -8,6 +8,9 @@ class MultinomialNLLLossFromLogits(nn.Module):
         super(MultinomialNLLLossFromLogits, self).__init__()
         self.reduction = reduction
     
+    def __name__(self):
+        return 'MultinomialNLLLossFromLogits'
+    
     def __call__(self, y, y_pred, dim=-1):
         neg_log_probs = self.log_likelihood_from_logits(y, y_pred, dim) * -1
         if self.reduction is not None:

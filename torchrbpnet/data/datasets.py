@@ -33,3 +33,14 @@ class TFIterableDataset(torch.utils.data.IterableDataset):
     def __iter__(self):
         for example in self.dataset.as_numpy_iterator():
             yield tf.nest.map_structure(lambda x: torch.tensor(x).to(torch.float32), example)
+
+# %%
+class DummyIterableDataset(torch.utils.data.IterableDataset):
+    def __init__(self, n) -> None:
+        super(DummyIterableDataset).__init__()
+        
+        self.n = n
+
+    def __iter__(self):
+        for i in range(self.n):
+            yield (torch.rand(16, 4, 101), torch.rand(16, 101, 7))
