@@ -96,6 +96,12 @@ def train(tfrecord, validation_tfrecord, output_path, network=None, **kwargs):
     trainer.fit(model, train_dataloaders=dataloader_train, val_dataloaders=dataloader_val)
     torch.save(model, output_path / 'model.pt')
 
+    print('Final validation ...')
+    with open(str(output_path.parent / 'result'), 'w') as f:
+        result = trainer.validate(model, dataloader_val)[0]['val/loss_epoch']
+        print(result, file=f)
+
+
 # %%
 @click.command()
 @click.argument('tfrecord', required=True, type=str)
