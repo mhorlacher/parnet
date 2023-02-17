@@ -8,15 +8,16 @@ import click
 import torch
 import pytorch_lightning as pl
 
-# from ..lightning import Model
 from ..networks import MultiRBPNet
 from ..losses import MultinomialNLLLossFromLogits
-from ..metrics import batched_pearson_corrcoef
+from ..metrics import MultinomialNLLFromLogits, BatchedPCC
 from ..data import tfrecord_to_dataloader, dummy_dataloader
 
 from pytorch_lightning import loggers as pl_loggers
 from pytorch_lightning import Trainer
-from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
+from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping, RichProgressBar
+from pytorch_lightning.callbacks.progress.rich_progress import RichProgressBarTheme
+
 
 # %%
 @gin.configurable()
@@ -25,45 +26,52 @@ class Model(pl.LightningModule):
         super().__init__()
         self.network = network
         self.loss_fn = MultinomialNLLLossFromLogits()
-        self.metrics = [batched_pearson_corrcoef]
+        self.metrics = {'loss': MultinomialNLLFromLogits(), 'pcc': BatchedPCC()}
         self.example_input_array = _example_input
     
     def forward(self, *args, **kwargs):
         return self.network(*args, **kwargs)
 
-    def training_step(self, batch, *args, **kwargs):
-        x, y = batch
-        y_pred = self.network(x)
-        loss = self.loss_fn(y, y_pred, dim=-2)
-        self.log_dict(self._compute_metrics(y, y_pred, partition='train'), on_step=True, on_epoch=True, prog_bar=True)
-        return loss
-
-    def validation_step(self, batch, *args, **kwargs):
-        x, y = batch
-        y_pred = self.network(x)
-        loss = self.loss_fn(y, y_pred, dim=-2)
-        self.log_dict(self._compute_metrics(y, y_pred, partition='val'), on_step=True, on_epoch=True, prog_bar=True)
-        return loss
-
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=1e-3)
         return optimizer
 
-    def _compute_loss(self, y, y_pred):
-        return self.loss_fn(y, y_pred)
+    def training_step(self, batch, batch_idx, **kwargs):
+        x, y = batch
+        y_pred = self.forward(x)
+        loss = self.loss_fn(y, y_pred, dim=-2)
+        self.compute_and_log_metics(y_pred, y, partition='train')
+        return loss
+    
+    def training_epoch_end(self, *args, **kwargs):
+        self._reset_metrics()
 
-    def _compute_metrics(self, y, y_pred, partition=''):
-        results = dict()
-        for metric_fn in self.metrics:
-            results[f'{partition}/{metric_fn.__name__}'] = metric_fn(y, y_pred)
-        results[f'{partition}/loss'] = self._compute_loss(y, y_pred)
-        return results
+    def validation_epoch_end(self, *args, **kwargs):
+        self._reset_metrics()
+
+    def validation_step(self, batch, batch_idx):
+        x, y = batch
+        y_pred = self.forward(x)
+        self.compute_and_log_metics(y_pred, y, partition='val')
+    
+    def compute_and_log_metics(self, y_pred, y, partition=None):
+        on_step = False
+        if partition == 'train':
+            on_step = True
+
+        for name, metric in self.metrics.items():
+            metric(y_pred, y)
+            self.log(f'{partition}/{name}', metric.compute(), on_step=on_step, on_epoch=True, prog_bar=False)
+    
+    def _reset_metrics(self):
+        for metric in self.metrics.values():
+            metric.reset()
 
 # %%
 def _make_callbacks(output_path):
     callbacks = [
         ModelCheckpoint(dirpath=output_path/'checkpoints', every_n_epochs=1, save_last=True),
-        EarlyStopping(monitor="val/loss", min_delta=0.00, patience=3, verbose=False, mode="min"),
+        EarlyStopping(monitor="val/loss", min_delta=0.00, patience=3, verbose=False, mode='min'),
     ]
     return callbacks
 
@@ -75,13 +83,11 @@ def _make_loggers(output_path):
     return loggers
 
 # %%
-@gin.configurable()
-def train(tfrecord, validation_tfrecord, output_path, network=None, **kwargs):
-    # dataloader_train = dummy_dataloader(5)
-    # dataloader_val = dummy_dataloader(5)
-    dataloader_train = tfrecord_to_dataloader(tfrecord)
+@gin.configurable(denylist=['tfrecord', 'validation_tfrecord', 'output_path'])
+def train(tfrecord, validation_tfrecord, output_path, batch_size=128, shuffle=None, network=None, **kwargs):
+    dataloader_train = tfrecord_to_dataloader(tfrecord, batch_size=batch_size, shuffle=shuffle)
     if validation_tfrecord is not None:
-        dataloader_val = tfrecord_to_dataloader(validation_tfrecord)
+        dataloader_val = tfrecord_to_dataloader(validation_tfrecord, batch_size=batch_size)
     else:
         dataloader_val = None
 

@@ -4,11 +4,14 @@ import torch.nn as nn
 
 # %%
 class IndexEmbeddingOutputHead(nn.Module):
-    def __init__(self, n_tasks, dims):
+    def __init__(self, n_tasks, dims, task_names_txt=None):
         super(IndexEmbeddingOutputHead, self).__init__()
 
         # protein/experiment embedding of shape (p, d)
         self.embedding = torch.nn.Embedding(n_tasks, dims)
+
+        if task_names_txt is not None:
+            self.task_names = self._parse_names_txt(task_names_txt)
     
     def forward(self, bottleneck, **kwargs):
         # bottleneck of shape (batch, d, n) --> (batch, n, d)
@@ -19,3 +22,10 @@ class IndexEmbeddingOutputHead(nn.Module):
 
         logits = torch.matmul(bottleneck, embedding) # torch.transpose(self.embedding.weight, 0, 1)  
         return logits
+    
+    def _parse_task_names_txt(self, filepath):
+        names = []
+        with open(filepath) as f:
+            for line in f:
+                names.append(line.strip())
+        return names

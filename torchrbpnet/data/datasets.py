@@ -29,7 +29,13 @@ class TFIterableDataset(torch.utils.data.IterableDataset):
 
         # format dataset
         self.dataset = self.dataset.map(lambda e: (tf.transpose(e['inputs']['input'], perm=[0, 2, 1]), tf.transpose(e['outputs']['signal']['total'], perm=[0, 2, 1])))
-        
+    
+    def __len__(self):
+        n = 0
+        for _ in iter(self):
+            n += 1
+        return n
+
     def __iter__(self):
         for example in self.dataset.as_numpy_iterator():
             yield tf.nest.map_structure(lambda x: torch.tensor(x).to(torch.float32), example)
