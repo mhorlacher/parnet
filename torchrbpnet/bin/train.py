@@ -6,6 +6,7 @@ from pathlib import Path
 import gin
 import click
 import torch
+import torch.nn as nn
 import pytorch_lightning as pl
 
 from ..networks import MultiRBPNet
@@ -26,7 +27,7 @@ class Model(pl.LightningModule):
         super().__init__()
         self.network = network
         self.loss_fn = MultinomialNLLLossFromLogits()
-        self.metrics = {'loss': MultinomialNLLFromLogits(), 'pcc': BatchedPCC()}
+        self.metrics = nn.ModuleDict({'loss': MultinomialNLLFromLogits(), 'pcc': BatchedPCC()}) # This has to be wrapped in a nn.ModuleDict (otherwise .to_device has to be called manually on metrics)
         self.example_input_array = _example_input
     
     def forward(self, *args, **kwargs):
