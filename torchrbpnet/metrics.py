@@ -28,8 +28,8 @@ class BatchedPCC(torchmetrics.MeanMetric):
         # convert nan's to 0
         values = torch.nan_to_num(values, 0.0)
 
-        # update (i.e. take mean)
-        super().update(torch.sum(values, dim=0))
+        # update (i.e. take mean - at this point the shape should be (batch_size x experiments))
+        super().update(values)
 
 # %%
 class MultinomialNLLFromLogits(torchmetrics.MeanMetric):
