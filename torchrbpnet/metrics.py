@@ -22,10 +22,14 @@ class BatchedPCC(torchmetrics.MeanMetric):
         values = []
         for i in range(y.shape[0]):
             values.append(torchmetrics.functional.pearson_corrcoef(y[i], y_pred[i]))
-        values = torch.sum(torch.stack(values), dim=0)
+        # stack to (batch_size x ...)
+        values = torch.stack(values)
+
+        # convert nan's to 0
+        values = torch.nan_to_num(values, 0.0)
 
         # update (i.e. take mean)
-        super().update(values)
+        super().update(torch.sum(values, dim=0))
 
 # %%
 class MultinomialNLLFromLogits(torchmetrics.MeanMetric):
