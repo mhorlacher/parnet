@@ -1,10 +1,12 @@
 # %%
+import gin
 import torch
 import tensorflow as tf
 
 from rbpnet import io
 
 # %%
+@gin.configurable(denylist=['filepath', 'features_filepath'])
 class TFIterableDataset(torch.utils.data.IterableDataset):
     def __init__(self, filepath, features_filepath=None, batch_size=64, cache=True, shuffle=None):
         super(TFIterableDataset).__init__()
@@ -42,6 +44,7 @@ class TFIterableDataset(torch.utils.data.IterableDataset):
             yield self._to_pytorch_compatible(example)
 
 # %%
+@gin.configurable(denylist=['filepath', 'features_filepath'])
 class MaskedTFIterableDataset(TFIterableDataset):
     def __init__(self, masks=None, **kwargs):
         super(MaskedTFIterableDataset, self).__init__(**kwargs)
