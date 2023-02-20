@@ -9,6 +9,7 @@ import torch
 import torch.nn as nn
 import pytorch_lightning as pl
 
+from .. import layers
 from ..networks import MultiRBPNet
 from ..losses import MultinomialNLLLossFromLogits
 from ..metrics import MultinomialNLLFromLogits, BatchedPCC

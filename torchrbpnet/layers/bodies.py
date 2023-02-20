@@ -1,5 +1,4 @@
 # %%
-from turtle import forward
 import gin
 import torch
 import torch.nn as nn
