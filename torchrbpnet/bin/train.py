@@ -102,7 +102,7 @@ def train(tfrecord, validation_tfrecord, output_path, batch_size=128, shuffle=No
 
     model = Model(network, next(iter(dataloader_train))[0])
     trainer.fit(model, train_dataloaders=dataloader_train, val_dataloaders=dataloader_val)
-    torch.save(model, output_path / 'model.pt')
+    # torch.save(model, output_path / 'model.pt') # Raises Tensorflow error during pickling (InvalidArgumentError: Cannot convert a Tensor of dtype variant to a NumPy array.)
 
     print('Final validation ...')
     with open(str(output_path.parent / 'result'), 'w') as f:

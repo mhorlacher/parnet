@@ -1,8 +1,11 @@
 # %%
+from turtle import forward
+import gin
 import torch
 import torch.nn as nn
 
 # %%
+gin.configurable()
 class Conv1DFirstLayer(nn.Module):
     def __init__(self, in_chan, filters=128, kernel_size=12):
         super(Conv1DFirstLayer, self).__init__()
@@ -16,6 +19,7 @@ class Conv1DFirstLayer(nn.Module):
         return x
 
 # %%
+gin.configurable()
 class Conv1DResBlock(nn.Module):
     def __init__(self, in_chan, filters=128, kernel_size=3, dropout=0.25, dilation=1, residual=True):
         super(Conv1DResBlock, self).__init__()
@@ -34,3 +38,14 @@ class Conv1DResBlock(nn.Module):
         if self.residual:
             x = inputs + x
         return x
+
+# %%
+@gin.configurable(denylist=['in_channels'])
+class LinearProjection(nn.Module):
+    def __init__(self, in_channels, dims=128, use_bias_term=False) -> None:
+        super(LinearProjection, self).__init__()
+
+        self.linear = nn.Linear(in_channels, dims, bias=use_bias_term)
+    
+    def forward(self, x):
+        return self.linear(x)
