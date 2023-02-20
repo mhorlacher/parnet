@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 
 # %%
-gin.configurable()
+@gin.configurable()
 class Conv1DFirstLayer(nn.Module):
     def __init__(self, in_chan, filters=128, kernel_size=12):
         super(Conv1DFirstLayer, self).__init__()
@@ -18,7 +18,7 @@ class Conv1DFirstLayer(nn.Module):
         return x
 
 # %%
-gin.configurable()
+@gin.configurable()
 class Conv1DResBlock(nn.Module):
     def __init__(self, in_chan, filters=128, kernel_size=3, dropout=0.25, dilation=1, residual=True):
         super(Conv1DResBlock, self).__init__()
