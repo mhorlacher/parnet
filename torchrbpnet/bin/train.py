@@ -31,7 +31,7 @@ class Model(pl.LightningModule):
         self.loss_fn = MultinomialNLLLossFromLogits()
         # self.metrics = nn.ModuleDict({'loss': MultinomialNLLFromLogits(), 'pcc': BatchedPCC()}) # This has to be wrapped in a nn.ModuleDict (otherwise .to_device has to be called manually on metrics)
         self.metrics = nn.ModuleDict({'loss': MultinomialNLLFromLogits(), 'pcc': BatchedPCC()})
-        self.example_input_array = _example_input
+        # self.example_input_array = _example_input
     
     def forward(self, *args, **kwargs):
         return self.network(*args, **kwargs)
