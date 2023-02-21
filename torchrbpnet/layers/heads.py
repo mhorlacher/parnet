@@ -14,8 +14,8 @@ class IndexEmbeddingOutputHead(nn.Module):
             self.task_names = self._parse_names_txt(task_names_txt)
     
     def forward(self, bottleneck, **kwargs):
-        # bottleneck of shape (batch, d, n) --> (batch, n, d)
-        bottleneck = torch.transpose(bottleneck, -1, -2)
+        # bottleneck of shape (batch_size, N, dim)
+        # bottleneck = torch.transpose(bottleneck, -1, -2) # This was moved to the network module
         
         # embedding of (batch, p, d) --> (batch, d, p)
         embedding = torch.transpose(self.embedding.weight, 0, 1)
