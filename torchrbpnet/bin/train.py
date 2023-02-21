@@ -13,6 +13,7 @@ from .. import layers
 from ..networks import MultiRBPNet
 from ..losses import MultinomialNLLLossFromLogits
 from ..metrics import MultinomialNLLFromLogits, BatchedPCC
+from ..data.datasets import TFIterableDataset
 from ..data import tfrecord_to_dataloader, dummy_dataloader
 
 from pytorch_lightning import loggers as pl_loggers
@@ -74,7 +75,7 @@ class Model(pl.LightningModule):
 def _make_callbacks(output_path):
     callbacks = [
         ModelCheckpoint(dirpath=output_path/'checkpoints', every_n_epochs=1, save_last=True),
-        EarlyStopping(monitor="val/loss", min_delta=0.00, patience=3, verbose=False, mode='min'),
+        EarlyStopping(monitor="val/loss", min_delta=0.00, patience=10, verbose=False, mode='min'),
     ]
     return callbacks
 
@@ -87,10 +88,10 @@ def _make_loggers(output_path):
 
 # %%
 @gin.configurable(denylist=['tfrecord', 'validation_tfrecord', 'output_path'])
-def train(tfrecord, validation_tfrecord, output_path, batch_size=128, shuffle=None, network=None, **kwargs):
-    dataloader_train = tfrecord_to_dataloader(tfrecord, batch_size=batch_size, shuffle=shuffle)
+def train(tfrecord, validation_tfrecord, output_path, dataset=TFIterableDataset, batch_size=128, shuffle=None, network=None, **kwargs):
+    dataloader_train = torch.utils.data.DataLoader(dataset(filepath=tfrecord, batch_size=batch_size, shuffle=shuffle), batch_size=None) #tfrecord_to_dataloader(tfrecord, batch_size=batch_size, shuffle=shuffle)
     if validation_tfrecord is not None:
-        dataloader_val = tfrecord_to_dataloader(validation_tfrecord, batch_size=batch_size)
+        dataloader_val = torch.utils.data.DataLoader(dataset(filepath=validation_tfrecord, batch_size=batch_size, shuffle=shuffle), batch_size=None)
     else:
         dataloader_val = None
 
