@@ -59,7 +59,6 @@ class ProteinEmbeddingMultiRBPNet(nn.Module):
         # x_r: (#proteins, dim)
 
         # transpose representations for matmul
-        # x_r = torch.transpose(x_r, dim0=-2, dim1=-1) # (batch_size, N, dim)
         x_p = torch.transpose(x_p, dim0=1, dim1=0) # (dim, #proteins)
         
         try:

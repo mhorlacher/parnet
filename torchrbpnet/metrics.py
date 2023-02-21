@@ -45,9 +45,9 @@ def batched_pearson_corrcoef(y_batch, y_pred_batch, reduction=torch.mean):
 
 # %%
 @gin.configurable
-class BatchedPCC(torchmetrics.MeanMetric):
+class BatchedPearsonCorrCoef(torchmetrics.MeanMetric):
     def __init__(self, min_height=2, min_count=None):
-        super(BatchedPCC, self).__init__()
+        super(BatchedPearsonCorrCoef, self).__init__()
 
         self.min_height = min_height
         self.min_count = min_count
@@ -56,18 +56,20 @@ class BatchedPCC(torchmetrics.MeanMetric):
         if y_pred.shape != y.shape:
             raise ValueError('shapes y_pred {y_pred.shape} and y {y.shape} are not the same. ')
 
-        mean_pcc = self._compute_mean(y_pred, y)
+        cc_values = self.compute_cc(y_pred, y)
+        cc_mean = self.compute_mean(cc_values, y)
 
         # update
-        super().update(mean_pcc)
-
-    def _compute_mean(self, y_pred: torch.Tensor, y: torch.Tensor):
+        super().update(cc_mean)
+    
+    def compute_cc(self, y_pred: torch.Tensor, y: torch.Tensor):
         values = []
         for i in range(y.shape[0]):
             values.append(torchmetrics.functional.pearson_corrcoef(y[i], y_pred[i]))
         # stack to (batch_size x ...) - at this point the shape should be (batch_size x experiments
-        values = torch.stack(values)
+        return torch.stack(values)
 
+    def compute_mean(self, values: torch.Tensor, y: torch.Tensor):
         # create boolean tensor of entries that are *not* NaNs
         values_is_not_nan_mask = torch.logical_not(torch.isnan(values))
         # convert nan's to 0
