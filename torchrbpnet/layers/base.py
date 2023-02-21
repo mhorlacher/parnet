@@ -39,12 +39,12 @@ class Conv1DResBlock(nn.Module):
         return x
 
 # %%
-@gin.configurable(denylist=['in_channels'])
+@gin.configurable(denylist=['in_features'])
 class LinearProjection(nn.Module):
-    def __init__(self, in_channels, dims=128, use_bias_term=False) -> None:
+    def __init__(self, in_features, out_features=128, bias_term=False) -> None:
         super(LinearProjection, self).__init__()
 
-        self.linear = nn.Linear(in_channels, dims, bias=use_bias_term)
+        self.linear = nn.Linear(in_features, out_features, bias=bias_term)
     
     def forward(self, x):
         return self.linear(x)

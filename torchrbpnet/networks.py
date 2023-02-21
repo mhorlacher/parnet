@@ -17,7 +17,7 @@ class MultiRBPNet(nn.Module):
         self.n_tasks = n_tasks
 
         self.body = nn.Sequential(*[Conv1DFirstLayer(4, n_body_filters, 6)]+[(Conv1DResBlock(n_body_filters, n_body_filters, dilation=(2**i))) for i in range(n_layers)])
-        self.rna_projection = nn.Linear(in_features=n_body_filters, out_features=256, bias=False)
+        self.linear_projection = LinearProjection(in_features=n_body_filters)
         self.head = IndexEmbeddingOutputHead(self.n_tasks, dims=n_body_filters)
     
     def forward(self, inputs, **kwargs):
@@ -26,7 +26,7 @@ class MultiRBPNet(nn.Module):
             x = layer(x)
         # transpose: # (batch_size, dim, N) --> (batch_size, N, dim)
         x = torch.transpose(x, dim0=-2, dim1=-1)
-        x = self.rna_projection(x)
+        x = self.linear_projection(x)
 
         return self.head(x)
 

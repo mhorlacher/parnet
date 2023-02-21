@@ -4,6 +4,7 @@ import shutil
 from pathlib import Path
 
 import gin
+import gin.torch.external_configurables # TODO: gin.torch doesn't actually import gin.torch.external_configurables --> PR?
 import click
 import torch
 import torch.nn as nn
@@ -12,7 +13,7 @@ import pytorch_lightning as pl
 from .. import layers
 from ..networks import MultiRBPNet
 from ..losses import MultinomialNLLLossFromLogits
-from ..metrics import MultinomialNLLFromLogits, BatchedPCC
+from ..metrics import MultinomialNLLFromLogits, BatchedPearsonCorrCoef
 from ..data.datasets import TFIterableDataset
 from ..data import tfrecord_to_dataloader, dummy_dataloader
 
@@ -25,19 +26,25 @@ from pytorch_lightning.callbacks.progress.rich_progress import RichProgressBarTh
 # %%
 @gin.configurable()
 class Model(pl.LightningModule):
-    def __init__(self, network, _example_input):
+    def __init__(self, network, _example_input, metrics=None, optimizer=torch.optim.Adam):
         super().__init__()
         self.network = network
         self.loss_fn = MultinomialNLLLossFromLogits()
-        # self.metrics = nn.ModuleDict({'loss': MultinomialNLLFromLogits(), 'pcc': BatchedPCC()}) # This has to be wrapped in a nn.ModuleDict (otherwise .to_device has to be called manually on metrics)
-        self.metrics = nn.ModuleDict({'loss': MultinomialNLLFromLogits(), 'pcc': BatchedPCC()})
-        # self.example_input_array = _example_input
+        
+        # metrics
+        if metrics is None:
+            self.metrics = nn.ModuleDict({})
+        else:
+            self.metrics = nn.ModuleDict(metrics)
+        
+        # optimizer
+        self.optimizer_cls = optimizer
     
     def forward(self, *args, **kwargs):
         return self.network(*args, **kwargs)
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=1e-3)
+        optimizer = self.optimizer_cls(self.parameters())
         return optimizer
 
     def training_step(self, batch, batch_idx, **kwargs):
@@ -90,7 +97,7 @@ def _make_loggers(output_path):
 
 # %%
 @gin.configurable(denylist=['tfrecord', 'validation_tfrecord', 'output_path'])
-def train(tfrecord, validation_tfrecord, output_path, dataset=TFIterableDataset, batch_size=128, shuffle=None, network=None, **kwargs):
+def train(tfrecord, validation_tfrecord, output_path, dataset=TFIterableDataset, metrics=None, optimizer=None, batch_size=128, shuffle=None, network=None, **kwargs):
     dataloader_train = torch.utils.data.DataLoader(dataset(filepath=tfrecord, batch_size=batch_size, shuffle=shuffle), batch_size=None) #tfrecord_to_dataloader(tfrecord, batch_size=batch_size, shuffle=shuffle)
     if validation_tfrecord is not None:
         dataloader_val = torch.utils.data.DataLoader(dataset(filepath=validation_tfrecord, batch_size=batch_size, shuffle=shuffle), batch_size=None)
@@ -104,7 +111,16 @@ def train(tfrecord, validation_tfrecord, output_path, dataset=TFIterableDataset,
         **kwargs,
         )
 
-    model = Model(network, next(iter(dataloader_train))[0])
+    model = Model(network, next(iter(dataloader_train))[0], metrics=metrics, optimizer=optimizer)
+    
+    # write model summary
+    with open(str(output_path / 'model.summary.txt'), 'w') as f:
+        print(str(model), file=f)
+    
+    # write optimizer summary
+    with open(str(output_path / 'optim.summary.txt'), 'w') as f:
+        print(str(model.configure_optimizers()), file=f)
+
     trainer.fit(model, train_dataloaders=dataloader_train, val_dataloaders=dataloader_val)
     # torch.save(model, output_path / 'model.pt') # Raises Tensorflow error during pickling (InvalidArgumentError: Cannot convert a Tensor of dtype variant to a NumPy array.)
     torch.save(model.network, output_path / 'network.pt')

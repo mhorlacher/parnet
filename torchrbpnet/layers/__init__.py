@@ -1,3 +1,3 @@
 # %%
-from .bodies import Conv1DFirstLayer, Conv1DResBlock, LinearProjection
-from .heads import IndexEmbeddingOutputHead
+from .base import Conv1DFirstLayer, Conv1DResBlock, LinearProjection
+from .embedding import IndexEmbeddingOutputHead
