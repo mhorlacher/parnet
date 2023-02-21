@@ -41,8 +41,9 @@ class Model(pl.LightningModule):
         return optimizer
 
     def training_step(self, batch, batch_idx, **kwargs):
-        x, y = batch
-        y_pred = self.forward(x)
+        inputs, y = batch
+        y = y['total']
+        y_pred = self.forward(inputs)
         loss = self.loss_fn(y, y_pred, dim=-2)
         self.compute_and_log_metics(y_pred, y, partition='train')
         return loss
@@ -54,8 +55,9 @@ class Model(pl.LightningModule):
         self._reset_metrics()
 
     def validation_step(self, batch, batch_idx):
-        x, y = batch
-        y_pred = self.forward(x)
+        inputs, y = batch
+        y = y['total']
+        y_pred = self.forward(inputs)
         self.compute_and_log_metics(y_pred, y, partition='val')
     
     def compute_and_log_metics(self, y_pred, y, partition=None):
