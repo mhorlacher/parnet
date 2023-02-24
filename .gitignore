@@ -1,5 +1,9 @@
-**/logs/
 
+# Don't add dev notebooks
+notebooks/
+
+# Don't add logs, i.e. model outputs for test runs etc.
+**/logs/
 
 # Byte-compiled / optimized / DLL files
 **/__pycache__/
