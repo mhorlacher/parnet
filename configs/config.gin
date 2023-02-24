@@ -1,0 +1,18 @@
+from torchrbpnet import networks
+from torchrbpnet import layers
+
+train.network = @networks.MultiRBPNet()
+train.max_epochs = 3
+
+networks.MultiRBPNet.n_tasks = 7
+
+
+# -------------- #
+# --- Layers --- #
+# -------------- #
+
+layers.Conv1DFirstLayer.kernel_size = 12
+layers.Conv1DFirstLayer.filters = 256
+
+layers.Conv1DResBlock.kernel_size = 6
+layers.Conv1DResBlock.filters = 256
