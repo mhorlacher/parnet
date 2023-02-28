@@ -4,7 +4,7 @@ import unittest
 import torch
 from torch.distributions import Multinomial
 
-from torchrbpnet.losses import MultinomialNLLLossFromLogits
+from parnet.losses import MultinomialNLLLossFromLogits
 
 # %%
 def compute_manual_multinomial_nll(counts, logits):

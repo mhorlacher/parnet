@@ -20,3 +20,8 @@ try:
 except:
   # Invalid device or cannot modify virtual devices once initialized.
   pass
+
+# %%
+# Import torch and additional external configurables 
+import gin.torch.external_configurables
+from . import gin_external_configurables

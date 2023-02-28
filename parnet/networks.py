@@ -6,34 +6,36 @@ import torch
 import torch.nn as nn
 
 # %%
-from .layers import Conv1DFirstLayer, ResConv1DBlock, IndexEmbeddingOutputHead, LinearProjection
+from .layers import RNAConv1dBody, IndexEmbeddingOutputHead
 
 # %%
 @gin.configurable()
 class MultiRBPNet(nn.Module):
-    def __init__(self, n_tasks, n_layers=9, n_body_filters=256):
+    def __init__(self, n_tasks, dim=256):
         super(MultiRBPNet, self).__init__()
 
         self.n_tasks = n_tasks
 
-        self.body = nn.Sequential(*[Conv1DFirstLayer(4, n_body_filters, 6)]+[(ResConv1DBlock(n_body_filters, n_body_filters, dilation=(2**i))) for i in range(n_layers)])
-        self.linear_projection = LinearProjection(in_features=n_body_filters)
-        self.head = IndexEmbeddingOutputHead(self.n_tasks, dims=n_body_filters)
+        self.body = RNAConv1dBody()
+        # self.body = nn.Sequential(*[StemConv1D(4, n_body_filters, 6)]+[(ResConv1DBlock(n_body_filters, n_body_filters, dilation=(2**i))) for i in range(n_layers)])
+        # self.linear_projection = LinearProjection(in_features=n_body_filters)
+        self.head = IndexEmbeddingOutputHead(self.n_tasks, dims=dim)
     
-    def _make_res_tower(self, n_layers, filters, dilation_factor):
-        tower = nn.Sequential([
-            (ResConv1DBlock(filters, filters, dilation=(dilation_factor**i))) for i in range(n_layers)
-        ])
-        return tower
+    # def _make_res_tower(self, n_layers, filters, dilation_factor):
+    #     tower = nn.Sequential([
+    #         (ResConv1DBlock(filters, filters, dilation=(dilation_factor**i))) for i in range(n_layers)
+    #     ])
+    #     return tower
 
     
     def forward(self, inputs, **kwargs):
         x = inputs['sequence']
-        for layer in self.body:
-            x = layer(x)
-        # transpose: # (batch_size, dim, N) --> (batch_size, N, dim)
-        x = torch.transpose(x, dim0=-2, dim1=-1)
-        x = self.linear_projection(x)
+        # for layer in self.body:
+        #     x = layer(x)
+        x = self.body(x)
+        # # transpose: # (batch_size, dim, N) --> (batch_size, N, dim)
+        # x = torch.transpose(x, dim0=-2, dim1=-1)
+        # x = self.linear_projection(x)
 
         return self.head(x)
 
@@ -44,7 +46,7 @@ class ProteinEmbeddingMultiRBPNet(nn.Module):
         super(ProteinEmbeddingMultiRBPNet, self).__init__()
 
         # layers RNA
-        self.body = nn.Sequential(*[Conv1DFirstLayer(4, n_body_filters, 6)]+[(ResConv1DBlock(n_body_filters, n_body_filters, dilation=(2**i))) for i in range(n_layers)])
+        self.body = nn.Sequential(*[StemConv1D(4, n_body_filters, 6)]+[(ResConv1DBlock(n_body_filters, n_body_filters, dilation=(2**i))) for i in range(n_layers)])
         self.rna_projection = nn.Linear(in_features=n_body_filters, out_features=256, bias=False)
 
         # layers protein

@@ -1,0 +1,57 @@
+import torch
+
+from torchrbpnet import networks
+from torchrbpnet import layers
+
+train.network = @networks.MultiRBPNet()
+train.max_epochs = 100
+
+networks.MultiRBPNet.n_tasks = 223
+
+
+# ------------------------- #
+# --- Global Parameters --- #
+# ------------------------- #
+
+activation = @torch.nn.SiLU()
+hidden_dim = 128
+
+
+# ----------------- #
+# --- Optimizer --- # 
+# ----------------- #
+
+train.optimizer = @torch.optim.Adam
+torch.optim.Adam.lr = 0.0005
+
+
+# ------------ #
+# --- Stem --- #
+# ------------ #
+
+layers.stems.StemConv1D.kernel_size = 12
+layers.stems.StemConv1D.filters = 128
+
+
+# ------------ #
+# --- Body --- #
+# ------------ #
+
+layers.bodies.RNAConv1dBody.block_layer = @layers.blocks.ResConv1DBlock
+layers.bodies.RNAConv1dBody.tower_layers_filters = [(8, 256)]
+layers.bodies.RNAConv1dBody.dilation = 1.5
+
+
+# --------------------- #
+# --- Body ResBlocks -- #
+# --------------------- #
+
+# --> ResConv1DBlock
+layers.blocks.ResConv1DBlock.kernel_size = 3
+layers.blocks.ResConv1DBlock.dropout = 0.15
+layers.blocks.ResConv1DBlock.activation = %activation
+
+# # --> BasenjiConv1DBlock
+# layers.blocks.BasenjiConv1DBlock.kernel_size = 5
+# layers.blocks.BasenjiConv1DBlock.dropout = 0.15
+# layers.blocks.BasenjiConv1DBlock.activation = %activation
