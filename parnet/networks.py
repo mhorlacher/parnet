@@ -33,7 +33,8 @@ class PanRBPNet(nn.Module):
             raise
 
         # transpose: # (batch_size, tasks, N) --> (batch_size, N, tasks)
-        return torch.transpose(x, dim0=-2, dim1=-1)
+        # x = torch.transpose(x, dim0=-2, dim1=-1)
+        return x
         
 
 

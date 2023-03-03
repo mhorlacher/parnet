@@ -46,9 +46,13 @@ class TFIterableDataset(torch.utils.data.IterableDataset):
         example = {
             'inputs': {
                 'sequence': tf.transpose(example['inputs']['input'], perm=[0, 2, 1])},
+            # 'outputs': {
+            #     'total': tf.transpose(example['outputs']['signal']['total'], perm=[0, 2, 1]),
+            #     'control': tf.transpose(example['outputs']['signal']['control'], perm=[0, 2, 1]),
+            # },
             'outputs': {
-                'total': tf.transpose(example['outputs']['signal']['total'], perm=[0, 2, 1]),
-                'control': tf.transpose(example['outputs']['signal']['control'], perm=[0, 2, 1]),
+                'total': example['outputs']['signal']['total'],
+                'control': example['outputs']['signal']['control'],
             },
         }
 
