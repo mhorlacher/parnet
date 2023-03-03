@@ -18,7 +18,7 @@ def multinomial_neg_log_probs(y, y_pred, dim=-1):
 
 # %%
 class MultinomialNLLLossFromLogits(torchmetrics.MeanMetric):
-    def __init__(self, dim=-2, reduction=torch.mean, *args, **kwargs):
+    def __init__(self, dim=-1, reduction=torch.mean, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.reduction = reduction
         self.dim = dim

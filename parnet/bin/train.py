@@ -30,8 +30,8 @@ class Model(pl.LightningModule):
 
         # loss
         self.loss_fn = nn.ModuleDict({
-            'TRAIN': MultinomialNLLLossFromLogits(dim=-2),
-            'VAL': MultinomialNLLLossFromLogits(dim=-2),
+            'TRAIN': MultinomialNLLLossFromLogits(dim=-1),
+            'VAL': MultinomialNLLLossFromLogits(dim=-1),
         })
         
         # metrics
