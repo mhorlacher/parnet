@@ -25,3 +25,7 @@ except:
 # Import torch and additional external configurables 
 import gin.torch.external_configurables
 from . import gin_external_configurables
+
+# %%
+# Import parnet modules
+from . import layers, networks, losses, metrics, data

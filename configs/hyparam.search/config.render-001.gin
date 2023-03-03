@@ -1,12 +1,24 @@
 import torch
+import pytorch_lightning
 
-from torchrbpnet import networks
-from torchrbpnet import layers
+from parnet import networks
+from parnet import layers
+from parnet import metrics
 
-train.network = @networks.MultiRBPNet()
-train.max_epochs = 100
+train.network = @networks.PanRBPNet()
+train.metrics = {'pcc': @metrics.BatchedPearsonCorrCoef}
+train.batch_size = 4
+train.shuffle = 1_000_000
+train.max_epochs = 500
 
-networks.MultiRBPNet.n_tasks = 223
+networks.PanRBPNet.n_tasks = 223
+
+
+# ----------------- #
+# --- Callbacks --- # 
+# ----------------- #
+
+pytorch_lightning.callbacks.EarlyStopping.patience = 500
 
 
 # ------------------------- #
@@ -37,9 +49,9 @@ layers.stems.StemConv1D.filters = 128
 # --- Body --- #
 # ------------ #
 
-layers.bodies.RNAConv1dBody.block_layer = @layers.blocks.ResConv1DBlock
-layers.bodies.RNAConv1dBody.tower_layers_filters = [(8, 256)]
-layers.bodies.RNAConv1dBody.dilation = 1.5
+layers.towers.Conv1DTower.block_layer = @layers.blocks.ResConv1DBlock
+layers.towers.Conv1DTower.layers_filters = [(8, 256)]
+layers.towers.Conv1DTower.dilation = 1.5
 
 
 # --------------------- #

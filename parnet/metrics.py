@@ -160,7 +160,7 @@ class BatchedPearsonCorrCoef(torchmetrics.MeanMetric):
 
 # %%
 @gin.configurable()
-class MultinomialNLLFromLogits(torchmetrics.MeanMetric):
+class MultinomialNLLLossFromLogitsMetric(torchmetrics.MeanMetric):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.loss_fn = MultinomialNLLLossFromLogits()

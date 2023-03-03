@@ -21,7 +21,9 @@ class ResConv1DBlock(nn.Module):
         if residual and (in_chan != filters):
             self.linear_upsample = nn.Conv1d(in_chan, filters, kernel_size=1, bias=False)
 
-        self.out_channels = filters
+    @property
+    def out_channels(self):
+        return self.conv1d.out_channels
     
     def forward(self, inputs, **kwargs):
         x = inputs
@@ -88,3 +90,4 @@ class ResConv1DBlock(nn.Module):
 #             x = inputs + x
 
 #         return x
+

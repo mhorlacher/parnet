@@ -11,31 +11,36 @@ import torch.nn as nn
 import pytorch_lightning as pl
 
 from .. import layers
-from ..networks import MultiRBPNet
+from ..networks import PanRBPNet
 from ..losses import MultinomialNLLLossFromLogits
-from ..metrics import MultinomialNLLFromLogits, BatchedPearsonCorrCoef
 from ..data.datasets import TFIterableDataset
 from ..data import tfrecord_to_dataloader, dummy_dataloader
 
 from pytorch_lightning import loggers as pl_loggers
 from pytorch_lightning import Trainer
-from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping, RichProgressBar
-from pytorch_lightning.callbacks.progress.rich_progress import RichProgressBarTheme
+from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping, LearningRateMonitor
 
 
 # %%
 @gin.configurable()
 class Model(pl.LightningModule):
-    def __init__(self, network, _example_input, metrics=None, optimizer=torch.optim.Adam):
+    def __init__(self, network, _example_input=None, metrics=None, optimizer=torch.optim.Adam):
         super().__init__()
         self.network = network
-        self.loss_fn = MultinomialNLLLossFromLogits()
+
+        # loss
+        self.loss_fn = nn.ModuleDict({
+            'TRAIN': MultinomialNLLLossFromLogits(dim=-2),
+            'VAL': MultinomialNLLLossFromLogits(dim=-2),
+        })
         
         # metrics
         if metrics is None:
-            self.metrics = nn.ModuleDict({})
-        else:
-            self.metrics = nn.ModuleDict(metrics)
+            metrics = {}
+        self.metrics = nn.ModuleDict({
+            'TRAIN': nn.ModuleDict({name: metric() for name, metric in metrics.items()}),
+            'VAL': nn.ModuleDict({name: metric() for name, metric in metrics.items()}),
+        })
         
         # optimizer
         self.optimizer_cls = optimizer
@@ -47,45 +52,48 @@ class Model(pl.LightningModule):
         optimizer = self.optimizer_cls(self.parameters())
         return optimizer
 
-    def training_step(self, batch, batch_idx, **kwargs):
+    def training_step(self, batch, batch_idx=None, **kwargs):
         inputs, y = batch
         y = y['total']
         y_pred = self.forward(inputs)
-        loss = self.loss_fn(y, y_pred, dim=-2)
-        self.compute_and_log_metics(y_pred, y, partition='train')
+        # loss = self.loss_fn(y, y_pred)
+        loss = self.compute_and_log_loss(y, y_pred, partition='TRAIN')
+        self.compute_and_log_metics(y, y_pred, partition='TRAIN')
         return loss
-    
-    def training_epoch_end(self, *args, **kwargs):
-        self._reset_metrics()
 
-    def validation_epoch_end(self, *args, **kwargs):
-        self._reset_metrics()
-
-    def validation_step(self, batch, batch_idx):
+    def validation_step(self, batch, batch_idx=None, **kwargs):
         inputs, y = batch
         y = y['total']
         y_pred = self.forward(inputs)
-        self.compute_and_log_metics(y_pred, y, partition='val')
+        self.compute_and_log_loss(y, y_pred, partition='VAL')
+        self.compute_and_log_metics(y, y_pred, partition='VAL')
     
-    def compute_and_log_metics(self, y_pred, y, partition=None):
-        on_step = False
-        if partition == 'train':
-            on_step = True
+    def compute_and_log_loss(self, y, y_pred, partition=None):
+        # on_step = False
+        # if partition == 'TRAIN':
+        #     on_step = True
 
-        for name, metric in self.metrics.items():
-            metric(y_pred, y)
-            self.log(f'{partition}/{name}', metric.compute(), on_step=on_step, on_epoch=True, prog_bar=False)
-    
-    def _reset_metrics(self):
-        for metric in self.metrics.values():
-            metric.reset()
+        loss = self.loss_fn[partition](y, y_pred)
+        self.log(f'{partition}/loss', loss, on_step=True, on_epoch=True, prog_bar=False)
+        return loss
+
+    def compute_and_log_metics(self, y, y_pred, partition=None):
+        # on_step = False
+        # if partition == 'TRAIN':
+        #     on_step = True
+
+        for name, metric in self.metrics[partition].items():
+            metric(y, y_pred)
+            self.log(f'{partition}/{name}', metric, on_step=True, on_epoch=True, prog_bar=False)
 
 # %%
-def _make_callbacks(output_path):
+def _make_callbacks(output_path, with_validation=False):
     callbacks = [
         ModelCheckpoint(dirpath=output_path/'checkpoints', every_n_epochs=1, save_last=True),
-        EarlyStopping(monitor="val/loss", min_delta=0.00, patience=10, verbose=False, mode='min'),
+        LearningRateMonitor('step', log_momentum=True),
     ]
+    # if with_validation:
+    #     callbacks.append(EarlyStopping('VAL/loss_epoch'))
     return callbacks
 
 # %%
@@ -107,7 +115,7 @@ def train(tfrecord, validation_tfrecord, output_path, dataset=TFIterableDataset,
     trainer = pl.Trainer(
         default_root_dir=output_path, 
         logger=_make_loggers(output_path), 
-        callbacks=_make_callbacks(output_path),
+        callbacks=_make_callbacks(output_path, validation_tfrecord is not None),
         **kwargs,
         )
 
@@ -125,10 +133,10 @@ def train(tfrecord, validation_tfrecord, output_path, dataset=TFIterableDataset,
     # torch.save(model, output_path / 'model.pt') # Raises Tensorflow error during pickling (InvalidArgumentError: Cannot convert a Tensor of dtype variant to a NumPy array.)
     torch.save(model.network, output_path / 'network.pt')
 
-    print('Final validation ...')
-    with open(str(output_path.parent / 'result'), 'w') as f:
-        result = trainer.validate(model, dataloader_val)[0]['val/loss_epoch']
-        print(result, file=f)
+    if validation_tfrecord is not None:
+        with open(str(output_path.parent / 'result'), 'w') as f:
+            result = trainer.validate(model, dataloader_val)[0]['VAL/loss_epoch']
+            print(result, file=f)
 
 
 # %%
