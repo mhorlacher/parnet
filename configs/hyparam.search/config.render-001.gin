@@ -6,7 +6,7 @@ from parnet import layers
 from parnet import metrics
 
 train.network = @networks.PanRBPNet()
-train.metrics = {'pcc': @metrics.BatchedPearsonCorrCoef}
+train.metrics = {'pcc': @metrics.PearsonCorrCoeff, 'filtered_pcc': @metrics.FilteredPearsonCorrCoeff}
 train.batch_size = 4
 train.shuffle = 1_000_000
 train.max_epochs = 500

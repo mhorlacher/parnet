@@ -24,7 +24,7 @@ from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping, Learning
 # %%
 @gin.configurable()
 class Model(pl.LightningModule):
-    def __init__(self, network, _example_input=None, metrics=None, optimizer=torch.optim.Adam):
+    def __init__(self, network=PanRBPNet, _example_input=None, metrics=None, optimizer=torch.optim.Adam):
         super().__init__()
         self.network = network
 
