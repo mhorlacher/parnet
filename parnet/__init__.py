@@ -29,3 +29,8 @@ from . import gin_external_configurables
 # %%
 # Import parnet modules
 from . import layers, networks, losses, metrics, data
+
+# %%
+import torch
+# add tensor cores support
+torch.set_float32_matmul_precision('high')
