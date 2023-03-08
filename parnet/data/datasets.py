@@ -1,4 +1,6 @@
 # %%
+import sys
+
 import gin
 import torch
 import tensorflow as tf
@@ -73,20 +75,25 @@ class TFIterableDataset(torch.utils.data.IterableDataset):
 # %%
 @gin.configurable(denylist=['filepath', 'features_filepath'])
 class MaskedTFIterableDataset(TFIterableDataset):
-    def __init__(self, masks=None, **kwargs):
+    def __init__(self, mask_filepaths=None, **kwargs):
         super(MaskedTFIterableDataset, self).__init__(**kwargs)
         self.composite_mask = None
-        if masks is not None:
-            self.composite_mask = self._make_composite_mask(masks)
+        if mask_filepaths is not None:
+            self.composite_mask = self._make_composite_mask(mask_filepaths)
 
-    def _make_composite_mask(self, masks):
-        composite_mask = masks[0]
-        for mask in masks[1:]:
-            composite_mask = torch.logical_and(composite_mask, mask)
+    def _make_composite_mask(self, mask_filepaths):
+        composite_mask = torch.load(mask_filepaths[0])
+        for filepath in mask_filepaths[1:]:
+            composite_mask = torch.logical_and(composite_mask, filepath)
         return composite_mask
     
     def mask_structure(self, structure, mask):
-        return tf.nest.map_structure(lambda tensor: tensor[:, mask, :], structure)
+        try:
+            return tf.nest.map_structure(lambda tensor: tensor[:, mask], structure)
+        except:
+            print(mask.shape, mask.dtype, file=sys.stderr)
+            raise
+
 
     def process_example(self, example):
         example['outputs'] = self.mask_structure(example['outputs'], self.composite_mask)
