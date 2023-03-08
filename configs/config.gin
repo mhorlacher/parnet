@@ -7,7 +7,7 @@ from parnet import metrics
 
 train.network = @networks.PanRBPNet()
 train.metrics = {'pcc': @metrics.PearsonCorrCoeff, 'filtered_pcc': @metrics.FilteredPearsonCorrCoeff}
-train.batch_size = 64
+train.batch_size = 256
 train.shuffle = 1_000_000
 train.max_epochs = 100
 # train.accelerator = 'gpu'
@@ -18,14 +18,14 @@ train.max_epochs = 100
 
 activation = @torch.nn.ReLU()
 networks.PanRBPNet.num_tasks = 223
-networks.PanRBPNet.dim = 64
+networks.PanRBPNet.dim = 128
 
 # --------------- #
 # --- Metrics --- # 
 # --------------- #
 
-metrics.FilteredPearsonCorrCoeff.min_height = 2
-metrics.FilteredPearsonCorrCoeff.min_count = 2
+metrics.FilteredPearsonCorrCoeff.min_height = 3
+metrics.FilteredPearsonCorrCoeff.min_count = 10
 
 
 # ----------------- #
@@ -49,6 +49,7 @@ torch.optim.Adam.lr = 0.001
 
 layers.stems.StemConv1D.kernel_size = 7
 layers.stems.StemConv1D.filters = 256
+layers.stems.StemConv1D.activation = %activation
 
 
 # ------------ #
@@ -63,3 +64,10 @@ layers.towers.Conv1DTower.dilation = 1.25
 layers.blocks.ResConv1DBlock.kernel_size = 4
 layers.blocks.ResConv1DBlock.dropout = 0.25
 layers.blocks.ResConv1DBlock.activation = %activation
+
+# ----------------- #
+# --- Pointwise --- #
+# ----------------- #
+
+layers.base.Pointwise.activation = %activation
+

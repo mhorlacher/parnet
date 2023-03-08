@@ -17,9 +17,9 @@ class ResConv1DBlock(nn.Module):
         self.dropout = nn.Dropout1d(dropout) if dropout is not None else None
         self.residual = residual
 
-        self.linear_upsample = None
+        self.linear = None
         if residual and (in_chan != filters):
-            self.linear_upsample = nn.Conv1d(in_chan, filters, kernel_size=1, bias=False)
+            self.linear = nn.Conv1d(in_chan, filters, kernel_size=1, bias=False)
 
     @property
     def out_channels(self):
@@ -42,8 +42,8 @@ class ResConv1DBlock(nn.Module):
 
         # residual
         if self.residual:
-            if self.linear_upsample:
-                inputs = self.linear_upsample(inputs)
+            if self.linear:
+                inputs = self.linear(inputs)
             x = inputs + x
 
         return x
