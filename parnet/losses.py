@@ -29,8 +29,9 @@ class MultinomialNLLLossFromLogits(torchmetrics.MeanMetric):
     def update(self, y: torch.Tensor, y_pred: torch.Tensor):
         assert y_pred.shape == y.shape
 
-        loss = self.reduction(multinomial_neg_log_probs(y, y_pred, dim=self.dim))
+        nll = multinomial_neg_log_probs(y, y_pred, dim=self.dim)
+        assert nll.shape == y_pred.shape[:-1]
 
         # update running mean
-        super().update(loss)
+        super().update(self.reduction(nll))
 
