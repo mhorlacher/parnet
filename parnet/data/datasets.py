@@ -86,7 +86,7 @@ class MaskedTFIterableDataset(TFIterableDataset):
         return composite_mask
     
     def mask_structure(self, structure, mask):
-        return tf.nest.map_structure(lambda tensor: tensor[:, :, mask], structure)
+        return tf.nest.map_structure(lambda tensor: tensor[:, mask, :], structure)
 
     def process_example(self, example):
         example['outputs'] = self.mask_structure(example['outputs'], self.composite_mask)
