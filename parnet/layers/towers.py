@@ -4,7 +4,6 @@ import torch
 import torch.nn as nn
 
 from .stems import StemConv1D
-from .base import LinearProjectionConv1D
 from .blocks import ResConv1DBlock
 
 # %%

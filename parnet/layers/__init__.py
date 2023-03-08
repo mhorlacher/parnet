@@ -1,6 +1,6 @@
 # %%
-from .base import LinearProjection, LinearProjectionConv1D
+from .base import LinearProjection, Pointwise
 from .blocks import ResConv1DBlock
 from .stems import StemConv1D
-from .embedding import IndexEmbeddingOutputHead
+from .embeddings import IndexEmbeddingOutput
 from .towers import Conv1DTower

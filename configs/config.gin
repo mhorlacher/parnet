@@ -1,18 +1,65 @@
-from torchrbpnet import networks
-from torchrbpnet import layers
+import torch
+import pytorch_lightning
 
-train.network = @networks.MultiRBPNet()
-train.max_epochs = 3
+from parnet import networks
+from parnet import layers
+from parnet import metrics
 
-networks.MultiRBPNet.n_tasks = 7
+train.network = @networks.PanRBPNet()
+train.metrics = {'pcc': @metrics.PearsonCorrCoeff, 'filtered_pcc': @metrics.FilteredPearsonCorrCoeff}
+train.batch_size = 64
+train.shuffle = 1_000_000
+train.max_epochs = 100
+# train.accelerator = 'gpu'
+
+# ------------------------- #
+# --- Global Parameters --- #
+# ------------------------- #
+
+activation = @torch.nn.ReLU()
+networks.PanRBPNet.num_tasks = 223
+networks.PanRBPNet.dim = 64
+
+# --------------- #
+# --- Metrics --- # 
+# --------------- #
+
+metrics.FilteredPearsonCorrCoeff.min_height = 2
+metrics.FilteredPearsonCorrCoeff.min_count = 2
 
 
-# -------------- #
-# --- Layers --- #
-# -------------- #
+# ----------------- #
+# --- Callbacks --- # 
+# ----------------- #
 
-layers.Conv1DFirstLayer.kernel_size = 12
-layers.Conv1DFirstLayer.filters = 256
+pytorch_lightning.callbacks.EarlyStopping.patience = 10
 
-layers.Conv1DResBlock.kernel_size = 6
-layers.Conv1DResBlock.filters = 256
+
+# ----------------- #
+# --- Optimizer --- # 
+# ----------------- #
+
+train.optimizer = @torch.optim.Adam
+torch.optim.Adam.lr = 0.001
+
+
+# ------------ #
+# --- Stem --- #
+# ------------ #
+
+layers.stems.StemConv1D.kernel_size = 7
+layers.stems.StemConv1D.filters = 256
+
+
+# ------------ #
+# --- Body --- #
+# ------------ #
+
+layers.towers.Conv1DTower.block_layer = @layers.blocks.ResConv1DBlock
+layers.towers.Conv1DTower.layers_filters = [(6, 256), (3, 384)]
+layers.towers.Conv1DTower.dilation = 1.25
+
+# --> ResConv1DBlock
+layers.blocks.ResConv1DBlock.kernel_size = 4
+layers.blocks.ResConv1DBlock.dropout = 0.25
+layers.blocks.ResConv1DBlock.activation = %activation

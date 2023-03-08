@@ -1,6 +1,0 @@
-from torchrbpnet import networks
-
-train.network = @networks.PanRBPNet()
-train.max_epochs = 3
-
-networks.PanRBPNet.n_tasks = 7

@@ -6,34 +6,34 @@ import torch
 import torch.nn as nn
 
 # %%
-from .layers import StemConv1D, Conv1DTower, LinearProjectionConv1D
+from .layers import StemConv1D, Conv1DTower, Pointwise, IndexEmbeddingOutput
 
 # %%
 @gin.configurable()
 class PanRBPNet(nn.Module):
-    def __init__(self, n_tasks, dim=128):
+    def __init__(self, num_tasks, dim=128):
         super(PanRBPNet, self).__init__()
 
-        self.n_tasks = n_tasks
+        self.num_tasks = num_tasks
         self.stem = StemConv1D()
         self.body = Conv1DTower(self.stem.out_channels)
-        self.output = LinearProjectionConv1D(self.body.out_channels, n_tasks)
+        self.pointwise = Pointwise(self.body.out_channels, dim)
+        self.output = IndexEmbeddingOutput(dim, num_tasks)
 
     def forward(self, inputs, **kwargs):
         x = inputs['sequence']
         x = self.body(self.stem(x))
+        x = self.pointwise(x)
         # x.shape: (batch_size, dim, N)
 
         try: 
             x = self.output(x)
-            # x.shape: (batch_size, tasks, N)
+            # x.shape: (batch_size, num_tasks, N)
         except:
             print(x.shape, x.dtype)
             print(self.output.weight.shape, self.output.weight.dtype)
             raise
 
-        # transpose: # (batch_size, tasks, N) --> (batch_size, N, tasks)
-        # x = torch.transpose(x, dim0=-2, dim1=-1)
         return x
         
 
