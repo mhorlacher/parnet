@@ -31,7 +31,6 @@ class PanRBPNet(nn.Module):
             # x.shape: (batch_size, num_tasks, N)
         except:
             print(x.shape, x.dtype)
-            print(self.output.weight.shape, self.output.weight.dtype)
             raise
 
         return x
