@@ -93,7 +93,7 @@ def _make_callbacks(output_path, with_validation=False):
         LearningRateMonitor('step', log_momentum=True),
     ]
     if with_validation:
-        callbacks.append(EarlyStopping('VAL/loss_epoch'))
+        callbacks.append(EarlyStopping('VAL/loss_epoch', verbose=True))
     return callbacks
 
 # %%
