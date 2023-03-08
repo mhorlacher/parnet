@@ -32,7 +32,6 @@ metrics.FilteredPearsonCorrCoeff.min_count = 10
 # --- Callbacks --- # 
 # ----------------- #
 
-pytorch_lightning.callbacks.EarlyStopping.patience = 10
 
 
 # ----------------- #
