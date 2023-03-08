@@ -92,8 +92,8 @@ def _make_callbacks(output_path, with_validation=False):
         ModelCheckpoint(dirpath=output_path/'checkpoints', every_n_epochs=1, save_last=True, save_top_k=1),
         LearningRateMonitor('step', log_momentum=True),
     ]
-    if with_validation:
-        callbacks.append(EarlyStopping('VAL/loss_epoch', patience=15, verbose=True))
+    # if with_validation:
+    #     callbacks.append(EarlyStopping('VAL/loss_epoch', patience=15, verbose=True))
     return callbacks
 
 # %%
