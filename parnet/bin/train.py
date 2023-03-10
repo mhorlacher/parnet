@@ -24,14 +24,14 @@ from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping, Learning
 # %%
 @gin.configurable()
 class Model(pl.LightningModule):
-    def __init__(self, network=PanRBPNet, _example_input=None, metrics=None, optimizer=torch.optim.Adam):
+    def __init__(self, network=PanRBPNet, _example_input=None, loss=MultinomialNLLLossFromLogits, metrics=None, optimizer=torch.optim.Adam):
         super().__init__()
         self.network = network
 
         # loss
         self.loss_fn = nn.ModuleDict({
-            'TRAIN': MultinomialNLLLossFromLogits(dim=-1),
-            'VAL': MultinomialNLLLossFromLogits(dim=-1),
+            'TRAIN': loss(),
+            'VAL': loss(),
         })
         
         # metrics
@@ -107,7 +107,7 @@ def _make_loggers(output_path, loggers):
 
 # %%
 @gin.configurable(denylist=['tfrecord', 'validation_tfrecord', 'output_path'])
-def train(tfrecord, validation_tfrecord, output_path, dataset=TFIterableDataset, loggers=[TensorBoardLogger], metrics=None, optimizer=None, batch_size=128, shuffle=None, network=None, **kwargs):
+def train(tfrecord, validation_tfrecord, output_path, dataset=TFIterableDataset, loggers=[TensorBoardLogger], loss=None, metrics=None, optimizer=None, batch_size=128, shuffle=None, network=None, **kwargs):
     dataloader_train = torch.utils.data.DataLoader(dataset(filepath=tfrecord, batch_size=batch_size, shuffle=shuffle), batch_size=None) #tfrecord_to_dataloader(tfrecord, batch_size=batch_size, shuffle=shuffle)
     if validation_tfrecord is not None:
         dataloader_val = torch.utils.data.DataLoader(dataset(filepath=validation_tfrecord, batch_size=batch_size, shuffle=shuffle), batch_size=None)
@@ -121,7 +121,11 @@ def train(tfrecord, validation_tfrecord, output_path, dataset=TFIterableDataset,
         **kwargs,
         )
 
-    model = Model(network, next(iter(dataloader_train))[0], metrics=metrics, optimizer=optimizer)
+    # default loss
+    if loss is None:
+        loss = MultinomialNLLLossFromLogits
+
+    model = Model(network, next(iter(dataloader_train))[0], loss=loss, metrics=metrics, optimizer=optimizer)
     
     # write model summary
     with open(str(output_path / 'model.summary.txt'), 'w') as f:
