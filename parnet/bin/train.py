@@ -16,7 +16,7 @@ from ..losses import MultinomialNLLLossFromLogits
 from ..data.datasets import TFIterableDataset
 from ..data import tfrecord_to_dataloader, dummy_dataloader
 
-from pytorch_lightning import loggers as pl_loggers
+from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping, LearningRateMonitor
 
@@ -44,6 +44,9 @@ class Model(pl.LightningModule):
         
         # optimizer
         self.optimizer_cls = optimizer
+
+        # save hyperparameters
+        self.save_hyperparameters()
     
     def forward(self, *args, **kwargs):
         return self.network(*args, **kwargs)
@@ -74,7 +77,7 @@ class Model(pl.LightningModule):
         #     on_step = True
 
         loss = self.loss_fn[partition](y, y_pred)
-        self.log(f'{partition}/loss', loss, on_step=True, on_epoch=True, prog_bar=False)
+        self.log(f'loss/{partition}', loss, on_step=True, on_epoch=True, prog_bar=False)
         return loss
 
     def compute_and_log_metics(self, y, y_pred, partition=None):
@@ -84,7 +87,7 @@ class Model(pl.LightningModule):
 
         for name, metric in self.metrics[partition].items():
             metric(y, y_pred)
-            self.log(f'{partition}/{name}', metric, on_step=True, on_epoch=True, prog_bar=False)
+            self.log(f'{name}/{partition}', metric, on_step=True, on_epoch=True, prog_bar=False)
 
 # %%
 def _make_callbacks(output_path, with_validation=False):
@@ -97,15 +100,12 @@ def _make_callbacks(output_path, with_validation=False):
     return callbacks
 
 # %%
-def _make_loggers(output_path):
-    loggers = [
-        pl_loggers.TensorBoardLogger(output_path/'tensorboard', name='', version='', log_graph=True),
-    ]
-    return loggers
+def _make_loggers(output_path, loggers):
+    return [logger(save_dir=output_path, name='', version='') for logger in loggers]
 
 # %%
 @gin.configurable(denylist=['tfrecord', 'validation_tfrecord', 'output_path'])
-def train(tfrecord, validation_tfrecord, output_path, dataset=TFIterableDataset, metrics=None, optimizer=None, batch_size=128, shuffle=None, network=None, **kwargs):
+def train(tfrecord, validation_tfrecord, output_path, dataset=TFIterableDataset, loggers=[TensorBoardLogger], metrics=None, optimizer=None, batch_size=128, shuffle=None, network=None, **kwargs):
     dataloader_train = torch.utils.data.DataLoader(dataset(filepath=tfrecord, batch_size=batch_size, shuffle=shuffle), batch_size=None) #tfrecord_to_dataloader(tfrecord, batch_size=batch_size, shuffle=shuffle)
     if validation_tfrecord is not None:
         dataloader_val = torch.utils.data.DataLoader(dataset(filepath=validation_tfrecord, batch_size=batch_size, shuffle=shuffle), batch_size=None)
@@ -114,7 +114,7 @@ def train(tfrecord, validation_tfrecord, output_path, dataset=TFIterableDataset,
 
     trainer = pl.Trainer(
         default_root_dir=output_path, 
-        logger=_make_loggers(output_path), 
+        logger=_make_loggers(output_path, loggers), 
         callbacks=_make_callbacks(output_path, validation_tfrecord is not None),
         **kwargs,
         )

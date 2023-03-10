@@ -1,5 +1,6 @@
 import torch
 import pytorch_lightning
+from pytorch_lightning import loggers
 
 from parnet import networks
 from parnet import layers
@@ -7,9 +8,12 @@ from parnet import metrics
 
 train.network = @networks.PanRBPNet()
 train.metrics = {'pcc': @metrics.PearsonCorrCoeff, 'filtered_pcc': @metrics.FilteredPearsonCorrCoeff}
-train.batch_size = 256
+train.batch_size = 4
 train.shuffle = 1_000_000
-train.max_epochs = 100
+train.max_epochs = 10
+train.loggers = [@loggers.TensorBoardLogger, @loggers.WandbLogger]
+train.log_every_n_steps = 1
+train.track_grad_norm = 2
 # train.accelerator = 'gpu'
 
 # ------------------------- #
@@ -26,6 +30,14 @@ networks.PanRBPNet.dim = 128
 
 metrics.FilteredPearsonCorrCoeff.min_height = 3
 metrics.FilteredPearsonCorrCoeff.min_count = 10
+
+
+# --------------- #
+# --- Loggers --- # 
+# --------------- #
+
+loggers.WandbLogger.project = 'PanRBPNet'
+loggers.WandbLogger.tags = ['test', 'local']
 
 
 # ----------------- #
