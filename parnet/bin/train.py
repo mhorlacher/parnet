@@ -59,7 +59,9 @@ class Model(pl.LightningModule):
         inputs, y = batch
         y = y['total']
         y_pred = self.forward(inputs)
-        # loss = self.loss_fn(y, y_pred)
+        # log total counts
+        self.log('log10-1p_total_counts', torch.log10(y.sum()+1), on_step=True, logger=True)
+
         loss = self.compute_and_log_loss(y, y_pred, partition='TRAIN')
         self.compute_and_log_metics(y, y_pred, partition='TRAIN')
         return loss
