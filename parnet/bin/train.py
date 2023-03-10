@@ -133,10 +133,14 @@ def train(tfrecord, validation_tfrecord, output_path, dataset=TFIterableDataset,
     # torch.save(model, output_path / 'model.pt') # Raises Tensorflow error during pickling (InvalidArgumentError: Cannot convert a Tensor of dtype variant to a NumPy array.)
     torch.save(model.network, output_path / 'network.pt')
 
-    if validation_tfrecord is not None:
-        with open(str(output_path.parent / 'result'), 'w') as f:
-            result = trainer.validate(model, dataloader_val)[0]['VAL/loss_epoch']
-            print(result, file=f)
+    # create dummy result file
+    with open(str(output_path.parent / 'result'), 'w') as f:
+        pass
+
+    # if validation_tfrecord is not None:
+    #     with open(str(output_path.parent / 'result'), 'w') as f:
+    #         result = trainer.validate(model, dataloader_val)[0]['VAL/loss_epoch']
+    #         print(result, file=f)
 
 
 # %%
