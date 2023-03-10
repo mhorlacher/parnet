@@ -1,4 +1,5 @@
 # %%
+import gin
 import torch
 import torch.nn as nn
 import torchmetrics
@@ -20,6 +21,7 @@ def multinomial_nll_loss(y, y_pred, dim=-1):
     return torch.mean(multinomial_neg_log_probs(y, y_pred, dim))
 
 # %%
+@gin.configurable()
 class MultinomialNLLLossFromLogits(torchmetrics.MeanMetric):
     def __init__(self, dim=-1, reduction=torch.mean, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -35,3 +37,33 @@ class MultinomialNLLLossFromLogits(torchmetrics.MeanMetric):
         # update running mean
         super().update(self.reduction(nll))
 
+
+# %%
+@gin.configurable()
+class ClippedMultinomialNLLLossFromLogits(torchmetrics.MeanMetric):
+    def __init__(self, dim=-1, reduction=torch.mean, clip=0, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.reduction = reduction
+        self.dim = dim
+
+        assert clip >= 0
+        self.clip = clip
+
+    def update(self, y: torch.Tensor, y_pred: torch.Tensor):
+        assert y_pred.shape == y.shape
+        
+        # clip y and y_pred (so 3'/5' ends are ignored during loss calculation)
+        y_dim_size_before_clipping = y.shape[self.dim]
+        y, y_pred = self.clip_tensor(y), self.clip_tensor(y_pred)
+
+        # assert that clipping worked
+        assert y.shape[self.dim] == y_pred.shape[self.dim] == y_dim_size_before_clipping-(2*self.clip)
+
+        nll = multinomial_neg_log_probs(y, y_pred, dim=self.dim)
+        assert nll.shape == y_pred.shape[:-1]
+
+        # update running mean
+        super().update(self.reduction(nll))
+    
+    def clip_tensor(self, tensor):
+        return torch.narrow(tensor, self.dim, self.clip, tensor.shape[self.dim]-(2*self.clip))
