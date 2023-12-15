@@ -1,0 +1,33 @@
+{
+  "description": "Dataset built without a DatasetBuilder class.",
+  "fileFormat": "tfrecord",
+  "moduleName": "tensorflow_datasets.core.dataset_builders.adhoc_builder",
+  "name": "parnet_dataset",
+  "splits": [
+    {
+      "filepathTemplate": "{DATASET}-{SPLIT}.{FILEFORMAT}-{SHARD_X_OF_Y}",
+      "name": "train",
+      "numBytes": "330480",
+      "shardLengths": [
+        "100"
+      ]
+    },
+    {
+      "filepathTemplate": "{DATASET}-{SPLIT}.{FILEFORMAT}-{SHARD_X_OF_Y}",
+      "name": "validation",
+      "numBytes": "362249",
+      "shardLengths": [
+        "100"
+      ]
+    },
+    {
+      "filepathTemplate": "{DATASET}-{SPLIT}.{FILEFORMAT}-{SHARD_X_OF_Y}",
+      "name": "test",
+      "numBytes": "337540",
+      "shardLengths": [
+        "100"
+      ]
+    }
+  ],
+  "version": "0.0.1"
+}

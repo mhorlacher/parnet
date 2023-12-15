@@ -23,16 +23,18 @@ def multinomial_nll_loss(y, y_pred, dim=-1):
 # %%
 @gin.configurable()
 class MultinomialNLLLossFromLogits(torchmetrics.MeanMetric):
+    # TODO: Replace with torch implementation. See https://pytorch.org/docs/stable/distributions.html#categorical. 
     def __init__(self, dim=-1, reduction=torch.mean, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.reduction = reduction
         self.dim = dim
 
-    def update(self, y: torch.Tensor, y_pred: torch.Tensor):
-        assert y_pred.shape == y.shape
+    def update(self, counts: torch.Tensor, logits: torch.Tensor):
+        if logits.shape != counts.shape:
+            raise ValueError(f"Shapes of logits {logits.shape} and counts {counts.shape} do not match.")
 
-        nll = multinomial_neg_log_probs(y, y_pred, dim=self.dim)
-        assert nll.shape == y_pred.shape[:-1]
+        nll = multinomial_neg_log_probs(counts, logits, dim=self.dim)
+        assert nll.shape == logits.shape[:-1]
 
         # update running mean
         super().update(self.reduction(nll))
