@@ -1,4 +1,10 @@
 # %%
+# disable tensorflow logs and enable dynamic memory growth (tf is only used for data loading via TFDS)
+from parnet.utils import _disable_tensorflow_logs, _set_tf_dynamic_memory_growth
+_disable_tensorflow_logs()
+_set_tf_dynamic_memory_growth()
+
+# %%
 import datetime
 import shutil
 from pathlib import Path
