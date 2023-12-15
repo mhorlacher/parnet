@@ -3,8 +3,10 @@ import unittest
 
 import torch
 from torch.distributions import Multinomial
+import tensorflow as tf
+import tensorflow_probability as tfp
 
-from torchrbpnet.losses import MultinomialNLLLossFromLogits
+from parnet.losses import MultinomialNLLLossFromLogits, multinomial_nll_loss
 
 # %%
 def compute_manual_multinomial_nll(counts, logits):
@@ -17,15 +19,39 @@ def compute_manual_multinomial_nll(counts, logits):
     return torch.mean(torch.tensor(nll))
 
 # %%
+def compute_multinomial_nll_tensorflow(y, y_pred):
+    y_tf, y_pred_tf = tf.constant(y, dtype=tf.float32), tf.constant(y_pred, dtype=tf.float32)
+    return tf.reduce_mean(-1. * tfp.distributions.Multinomial(total_count=tf.reduce_sum(y_tf, axis=-1), logits=y_pred_tf).log_prob(y_tf))
+
+# %%
 class TestLosses(unittest.TestCase):
-    
-    def test_MultinomialNLLLossFromLogits(self):
+
+    def test_multinomial_nll_loss(self):
         # arrange
-        y, y_pred = torch.randint(0, 10, size=(4, 42, 7)), torch.rand(4, 42, 7)
-        true_nll = compute_manual_multinomial_nll(y, y_pred)
+        y, y_pred = torch.randint(0, 10, size=(2, 7, 101)), torch.rand(2, 7, 101)
+        nll_tf = torch.tensor(compute_multinomial_nll_tensorflow(y.numpy(), y_pred.numpy()).numpy(), dtype=torch.float32)
 
         # act
-        nll = MultinomialNLLLossFromLogits(reduction=torch.mean)(y, y_pred, dim=-2)
+        nll = multinomial_nll_loss(y, y_pred)
 
         # assert
-        assert bool(nll == true_nll)
+        try:
+            assert torch.isclose(nll, nll_tf, atol=1e-6)
+        except AssertionError:
+            print(nll, nll_tf)
+            raise
+
+    def test_MultinomialNLLLossFromLogits(self):
+        # arrange
+        y, y_pred = torch.randint(0, 10, size=(2, 7, 101)), torch.rand(2, 7, 101)
+        nll_tf = torch.tensor(compute_multinomial_nll_tensorflow(y.numpy(), y_pred.numpy()).numpy(), dtype=torch.float32)
+
+        # act
+        nll = MultinomialNLLLossFromLogits()(y, y_pred)
+
+        # assert
+        try:
+            assert torch.isclose(nll, nll_tf, atol=1e-6)
+        except AssertionError:
+            print(nll, nll_tf)
+            raise

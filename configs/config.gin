@@ -1,18 +1,84 @@
-from torchrbpnet import networks
-from torchrbpnet import layers
+import torch
+import pytorch_lightning
+from pytorch_lightning import loggers
 
-train.network = @networks.MultiRBPNet()
-train.max_epochs = 3
+from parnet import networks
+from parnet import layers
+from parnet import metrics
 
-networks.MultiRBPNet.n_tasks = 7
+train.network = @networks.PanRBPNet()
+train.metrics = {'pcc': @metrics.PearsonCorrCoeff, 'filtered_pcc': @metrics.FilteredPearsonCorrCoeff}
+train.batch_size = 4
+train.shuffle = 1_000_000
+train.max_epochs = 10
+train.loggers = [@loggers.TensorBoardLogger, @loggers.WandbLogger]
+train.log_every_n_steps = 1
+train.track_grad_norm = 2
+# train.accelerator = 'gpu'
+
+# ------------------------- #
+# --- Global Parameters --- #
+# ------------------------- #
+
+activation = @torch.nn.ReLU()
+networks.PanRBPNet.num_tasks = 223
+networks.PanRBPNet.dim = 128
+
+# --------------- #
+# --- Metrics --- # 
+# --------------- #
+
+metrics.FilteredPearsonCorrCoeff.min_height = 3
+metrics.FilteredPearsonCorrCoeff.min_count = 10
 
 
-# -------------- #
-# --- Layers --- #
-# -------------- #
+# --------------- #
+# --- Loggers --- # 
+# --------------- #
 
-layers.Conv1DFirstLayer.kernel_size = 12
-layers.Conv1DFirstLayer.filters = 256
+loggers.WandbLogger.project = 'PanRBPNet'
+loggers.WandbLogger.tags = ['test', 'local']
 
-layers.Conv1DResBlock.kernel_size = 6
-layers.Conv1DResBlock.filters = 256
+
+# ----------------- #
+# --- Callbacks --- # 
+# ----------------- #
+
+
+
+# ----------------- #
+# --- Optimizer --- # 
+# ----------------- #
+
+train.optimizer = @torch.optim.Adam
+torch.optim.Adam.lr = 0.001
+
+
+# ------------ #
+# --- Stem --- #
+# ------------ #
+
+layers.stems.StemConv1D.kernel_size = 7
+layers.stems.StemConv1D.filters = 256
+layers.stems.StemConv1D.activation = %activation
+
+
+# ------------ #
+# --- Body --- #
+# ------------ #
+
+layers.towers.Conv1DTower.block_layer = @layers.blocks.ResConv1DBlock
+layers.towers.Conv1DTower.layers_filters = [(6, 256), (3, 384)]
+layers.towers.Conv1DTower.dilation = 1.25
+
+# --> ResConv1DBlock
+layers.blocks.ResConv1DBlock.kernel_size = 4
+layers.blocks.ResConv1DBlock.dropout = 0.25
+layers.blocks.ResConv1DBlock.activation = %activation
+
+# ----------------- #
+# --- Pointwise --- #
+# ----------------- #
+
+layers.base.Pointwise.activation = %activation
+

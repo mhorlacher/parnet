@@ -6,7 +6,7 @@ with open('requirements.txt', 'r') as f:
     requirements = f.read().splitlines()
 
 # %%
-setup(name='torchrbpnet',
+setup(name='parnet',
       version='0.1.0',
       description='RBPNet',
       # url='http://github.com/mhorlacher/rbpnet',
@@ -23,7 +23,7 @@ setup(name='torchrbpnet',
       #package_data={'notebooks': ['notebooks/*.ipynb']},
       entry_points = {
             'console_scripts': [
-                  'torchrbpnet=torchrbpnet.__main__:main',
+                  'parnet=parnet.__main__:main',
             ],
       },
       zip_safe=False)
