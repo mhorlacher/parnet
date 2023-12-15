@@ -1,0 +1,75 @@
+{
+    "pythonClassName": "tensorflow_datasets.core.features.features_dict.FeaturesDict",
+    "featuresDict": {
+        "features": {
+            "meta": {
+                "pythonClassName": "tensorflow_datasets.core.features.features_dict.FeaturesDict",
+                "featuresDict": {
+                    "features": {
+                        "name": {
+                            "pythonClassName": "tensorflow_datasets.core.features.tensor_feature.Tensor",
+                            "tensor": {
+                                "shape": {},
+                                "dtype": "string",
+                                "encoding": "none"
+                            }
+                        }
+                    }
+                }
+            },
+            "inputs": {
+                "pythonClassName": "tensorflow_datasets.core.features.features_dict.FeaturesDict",
+                "featuresDict": {
+                    "features": {
+                        "sequence": {
+                            "pythonClassName": "tensorflow_datasets.core.features.tensor_feature.Tensor",
+                            "tensor": {
+                                "shape": {
+                                    "dimensions": [
+                                        "-1",
+                                        "-1"
+                                    ]
+                                },
+                                "dtype": "int8",
+                                "encoding": "zlib"
+                            }
+                        }
+                    }
+                }
+            },
+            "outputs": {
+                "pythonClassName": "tensorflow_datasets.core.features.features_dict.FeaturesDict",
+                "featuresDict": {
+                    "features": {
+                        "eCLIP": {
+                            "pythonClassName": "tensorflow_datasets.core.features.tensor_feature.Tensor",
+                            "tensor": {
+                                "shape": {
+                                    "dimensions": [
+                                        "-1",
+                                        "-1"
+                                    ]
+                                },
+                                "dtype": "float32",
+                                "encoding": "zlib"
+                            }
+                        },
+                        "control": {
+                            "pythonClassName": "tensorflow_datasets.core.features.tensor_feature.Tensor",
+                            "tensor": {
+                                "shape": {
+                                    "dimensions": [
+                                        "-1",
+                                        "-1"
+                                    ]
+                                },
+                                "dtype": "float32",
+                                "encoding": "zlib"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

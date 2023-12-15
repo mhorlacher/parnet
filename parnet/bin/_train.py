@@ -2,27 +2,31 @@
 import datetime
 import shutil
 from pathlib import Path
-import warnings
 
-import click
 import gin
+import gin.torch.external_configurables # TODO: gin.torch doesn't actually import gin.torch.external_configurables --> PR?
+import click
 import torch
 import torch.nn as nn
 import pytorch_lightning as pl
 
-from parnet.io.datasets import TFDSDataset
-from parnet.losses import MultinomialNLLLossFromLogits
+from .. import layers
+from ..networks import PanRBPNet
+from ..losses import MultinomialNLLLossFromLogits
+from ..data.datasets import TFIterableDataset
+from ..data import tfrecord_to_dataloader, dummy_dataloader
+
+from pytorch_lightning.loggers import TensorBoardLogger
+from pytorch_lightning import Trainer
+from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping, LearningRateMonitor
+
 
 # %%
+@gin.configurable()
 class LightningModel(pl.LightningModule):
-    def __init__(self, model, loss=None, optimizer=None, metrics=None):
-        if loss is None:
-            raise ValueError('loss must be specified.')
-        if optimizer is None:
-            raise ValueError('optimizer must be specified.')
-
+    def __init__(self, network=PanRBPNet, _example_input=None, loss=MultinomialNLLLossFromLogits, metrics=None, optimizer=torch.optim.Adam):
         super().__init__()
-        self.model = model
+        self.network = network
 
         # loss
         self.loss_fn = nn.ModuleDict({
@@ -45,7 +49,7 @@ class LightningModel(pl.LightningModule):
         self.save_hyperparameters()
     
     def forward(self, *args, **kwargs):
-        return self.model(*args, **kwargs)
+        return self.network(*args, **kwargs)
 
     def configure_optimizers(self):
         optimizer = self.optimizer_cls(self.parameters())
@@ -88,86 +92,77 @@ class LightningModel(pl.LightningModule):
             self.log(f'{name}/{partition}', metric, on_step=True, on_epoch=True, prog_bar=False)
 
 # %%
-def _make_loggers(output_path, loggers):
-    if loggers is None:
-        return []
-    return [logger(save_dir=output_path, name='', version='') for logger in loggers]
-
-def _make_callbacks(output_path, validation=False):
+def _make_callbacks(output_path, with_validation=False):
     callbacks = [
-        pl.callbacks.ModelCheckpoint(dirpath=output_path/'checkpoints', every_n_epochs=1, save_last=True, save_top_k=1),
-        pl.callbacks.LearningRateMonitor('step', log_momentum=True),
+        ModelCheckpoint(dirpath=output_path/'checkpoints', every_n_epochs=1, save_last=True, save_top_k=1),
+        LearningRateMonitor('step', log_momentum=True),
     ]
-    # if validation:
+    # if with_validation:
     #     callbacks.append(EarlyStopping('VAL/loss_epoch', patience=15, verbose=True))
     return callbacks
 
 # %%
-@gin.configurable(denylist=['tfds_filepath', 'output_path'])
-def train(
-    tfds_filepath, 
-    output_path, 
-    dataset=TFDSDataset, 
-    model=None, 
-    loggers=None, 
-    loss=MultinomialNLLLossFromLogits, 
-    metrics=None, 
-    optimizer=torch.optim.Adam, 
-    batch_size=128, 
-    shuffle=None, 
-    **kwargs
-    ):
+def _make_loggers(output_path, loggers):
+    return [logger(save_dir=output_path, name='', version='') for logger in loggers]
 
-    # wrap model in LightningModule
-    lightning_model = LightningModel(model, loss=loss, metrics=metrics, optimizer=optimizer)
-
-    train_loader = torch.utils.data.DataLoader(dataset(tfds_filepath, split='train'), batch_size=batch_size)
-    val_loader = torch.utils.data.DataLoader(dataset(tfds_filepath, split='validation'), batch_size=batch_size)
-
-    
+# %%
+@gin.configurable(denylist=['tfrecord', 'validation_tfrecord', 'output_path'])
+def train(tfrecord, validation_tfrecord, output_path, dataset=TFIterableDataset, loggers=[TensorBoardLogger], loss=None, metrics=None, optimizer=None, batch_size=128, shuffle=None, network=None, **kwargs):
+    dataloader_train = torch.utils.data.DataLoader(dataset(filepath=tfrecord, batch_size=batch_size, shuffle=shuffle), batch_size=None) #tfrecord_to_dataloader(tfrecord, batch_size=batch_size, shuffle=shuffle)
+    if validation_tfrecord is not None:
+        dataloader_val = torch.utils.data.DataLoader(dataset(filepath=validation_tfrecord, batch_size=batch_size, shuffle=shuffle), batch_size=None)
+    else:
+        dataloader_val = None
 
     trainer = pl.Trainer(
         default_root_dir=output_path, 
         logger=_make_loggers(output_path, loggers), 
-        callbacks=_make_callbacks(output_path, validation=(val_loader is not None)),
+        callbacks=_make_callbacks(output_path, validation_tfrecord is not None),
         **kwargs,
         )
 
+    # default loss
+    if loss is None:
+        loss = MultinomialNLLLossFromLogits
+
+    model = LightningModel(network, next(iter(dataloader_train))[0], loss=loss, metrics=metrics, optimizer=optimizer)
     
     # write model summary
     with open(str(output_path / 'model.summary.txt'), 'w') as f:
-        print(str(lightning_model), file=f)
+        print(str(model), file=f)
     
     # write optimizer summary
     with open(str(output_path / 'optim.summary.txt'), 'w') as f:
-        print(str(lightning_model.configure_optimizers()), file=f)
+        print(str(model.configure_optimizers()), file=f)
 
-    # fit the model
-    trainer.fit(lightning_model, train_dataloaders=train_loader, val_dataloaders=val_loader)
+    trainer.fit(model, train_dataloaders=dataloader_train, val_dataloaders=dataloader_val)
+    # torch.save(model, output_path / 'model.pt') # Raises Tensorflow error during pickling (InvalidArgumentError: Cannot convert a Tensor of dtype variant to a NumPy array.)
+    torch.save(model.network, output_path / 'network.pt')
 
-    # save the torch (not pytorch-lightning) model
-    torch.save(lightning_model.model, output_path / 'model.pt')
+    # create dummy result file
+    with open(str(output_path.parent / 'result'), 'w') as f:
+        pass
+
+    # if validation_tfrecord is not None:
+    #     with open(str(output_path.parent / 'result'), 'w') as f:
+    #         result = trainer.validate(model, dataloader_val)[0]['VAL/loss_epoch']
+    #         print(result, file=f)
+
 
 # %%
 @click.command()
-@click.argument('tfds', required=True, type=str)
+@click.argument('tfrecord', required=True, type=str)
 @click.option('--config', type=str, default=None)
 @click.option('-o', '--output', required=True)
-def main(tfds, config, output):
-    # ignore torch warnings
-    warnings.filterwarnings("ignore")
-
+@click.option('--validation-tfrecord', type=str, default=None)
+def main(tfrecord, config, output, validation_tfrecord):
     # parse gin-config config
     if config is not None:
         gin.parse_config_file(config)
 
-    # create output directory
     output_path = Path(f'{output}/{datetime.datetime.now().strftime("%Y%m%d-%H%M%S")}')
     output_path.mkdir(parents=True)
-
-    # copy gin config
     if config is not None:
         shutil.copy(config, str(output_path / 'config.gin'))   
 
-    # launch training (parameters are configured exclusively via gin)
-    train(tfds, output_path)
+    train(tfrecord, validation_tfrecord, output_path)
