@@ -5,7 +5,7 @@ import tensorflow as tf # TODO: Remove this dependency. See https://www.tensorfl
 import tensorflow_datasets as tfds
 
 class TFDSDataset(torch.utils.data.IterableDataset):
-    def __init__(self, data_dir, split, data_name = 'parnet_dataset'):
+    def __init__(self, data_dir, split, data_name = 'parnet_dataset', shuffle = None):
         """Dataset wrapper for tfds datasets.
 
         Given a TFDS dataset, this class wraps it in a torch IterableDataset and 
@@ -19,8 +19,15 @@ class TFDSDataset(torch.utils.data.IterableDataset):
         super(TFDSDataset).__init__()
         
         self.split = split
+        
         # load tfds dataset to tf.data.Dataset
-        self._tf_dataset = tfds.load(data_name, data_dir=data_dir)[split]
+        self._tf_dataset = tfds.load(data_name, data_dir=data_dir, shuffle_files=(shuffle is None))[split]
+
+        # Above we used 'shuffle_files' when loading the data which should give us some decent shuffling without filling up 
+        # any buffers. To further improve shuffling, users may additionally specify the size of a shuffle buffer (in #samples). 
+        if shuffle is not None:
+            assert shuffle > 0 and isinstance(shuffle, int)
+            self._tf_dataset = self._tf_dataset.shuffle(shuffle)
     
     def _format_example(self, example):
         example = {
