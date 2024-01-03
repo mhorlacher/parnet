@@ -7,15 +7,13 @@
 """
 
 import math
-from typing import Any
 
 import yaml
 import numpy as np
 import tensorflow as tf
 import tensorflow_datasets as tfds
 import pandas as pd
-import pyBigWig # TODO: Check out https://github.com/pfizer-opensource/bigwig-loader for a faster alternative.
-import pysam # TODO: Import file-connector libraries only when needed, i.e. within class constructors. 
+
 
 # %%
 # map bases to their integer representation
@@ -76,6 +74,11 @@ class Fasta():
             filepath (str): The path to the FASTA file.
             mask_noncanonical_bases (bool, optional): Whether to mask non-canonical bases with 'N'. Defaults to True.
         """
+        try:
+            import pysam
+        except:
+            raise ModuleNotFoundError('Please install pyBigWig. See https://github.com/pysam-developers/pysam')
+
         self.mask_noncanonical_bases = mask_noncanonical_bases
         self._fasta = pysam.FastaFile(filepath)
     
@@ -110,7 +113,7 @@ class Fasta():
         # Convert to one-hot encoded numpy array. We assume that the alphabet is fairly small (usually 4 or 5 bases). 
         return np.array(sequence2onehot(sequence), dtype=np.int8)
 
-    def __call__(self, *args: Any, **kwargs: Any) -> Any:
+    def __call__(self, *args, **kwargs):
         return self.fetch(*args, **kwargs)
 
 # %%
@@ -134,11 +137,10 @@ def nan_to_zero(x):
 
 class BigWig():
     def __init__(self, bigwig_filepath) -> None:
-        # TODO: For now I prefer to have imports at the top of the file. 
-        # try:
-        #     import pyBigWig
-        # except ModuleNotFoundError:
-        #     raise ModuleNotFoundError('Please install pyBigWig. See https://github.com/deeptools/pyBigWig')
+        try:
+            import pyBigWig #TODO: For now I prefer to have imports at the top of the file. 
+        except ModuleNotFoundError:
+            raise ModuleNotFoundError('Please install pyBigWig. See https://github.com/deeptools/pyBigWig')
 
         self._bigWig = pyBigWig.open(bigwig_filepath)
     
@@ -148,7 +150,7 @@ class BigWig():
         values = [nan_to_zero(v) for v in values]        
         return np.array(values, dtype=np.float32)
     
-    def __call__(self, *args: Any, **kwargs: Any) -> Any:
+    def __call__(self, *args, **kwargs):
         return self.values(*args, **kwargs)
 
 class StrandedBigWig():
@@ -184,7 +186,7 @@ class StrandedBigWig():
 
         return values
     
-    def __call__(self, *args: Any, **kwargs: Any) -> Any:
+    def __call__(self, *args, **kwargs):
         return self.values(*args, **kwargs)
     
 # %%

@@ -8,6 +8,7 @@ train.loggers = [@loggers.TensorBoardLogger, @loggers.WandbLogger]
 train.loss = @losses.MultinomialNLLLossFromLogits
 train.metrics = {'pcc': @metrics.PearsonCorrCoeff, 'filtered_pcc': @metrics.FilteredPearsonCorrCoeff}
 train.batch_size = 4
+train.shuffle = 1000
 train.max_epochs = 3
 
 # ------------------------- #

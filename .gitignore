@@ -1,6 +1,6 @@
 
 # Don't add dev notebooks
-# notebooks/
+develop/
 
 # Don't add logs, i.e. model outputs for test runs etc.
 **/logs/

@@ -1,8 +1,15 @@
 # %%
+# disable tensorflow logs and enable dynamic memory growth (tf is only used for data loading via TFDS)
+from parnet.utils import _disable_tensorflow_logs, _set_tf_dynamic_memory_growth
+_disable_tensorflow_logs()
+_set_tf_dynamic_memory_growth()
+
+# %%
 import datetime
 import shutil
 from pathlib import Path
 import warnings
+import logging
 
 import click
 import gin
@@ -114,14 +121,19 @@ def train(
     metrics=None, 
     optimizer=torch.optim.Adam, 
     batch_size=128, 
-    shuffle=None, 
+    shuffle=None, # Shuffle is handled by TFDS. Any value >0 will enable 'shuffle_files' in TFDS and call 'ds.shuffle(x)' on the dataset.
     **kwargs
     ):
+
+    if shuffle is None:
+        logging.warning('\'shuffle\' is None. This will result in no shuffling of the dataset during training. To shuffle the dataset, set shuffle > 0.')
+    else:
+        logging.info(f'Shuffling dataset with buffer size {shuffle}.')
 
     # wrap model in LightningModule
     lightning_model = LightningModel(model, loss=loss, metrics=metrics, optimizer=optimizer)
 
-    train_loader = torch.utils.data.DataLoader(dataset(tfds_filepath, split='train'), batch_size=batch_size)
+    train_loader = torch.utils.data.DataLoader(dataset(tfds_filepath, split='train', shuffle=shuffle), batch_size=batch_size)
     val_loader = torch.utils.data.DataLoader(dataset(tfds_filepath, split='validation'), batch_size=batch_size)
 
     
@@ -152,8 +164,12 @@ def train(
 @click.command()
 @click.argument('tfds', required=True, type=str)
 @click.option('--config', type=str, default=None)
+@click.option('--log-level', type=str, default='WARNING')
 @click.option('-o', '--output', required=True)
-def main(tfds, config, output):
+def main(tfds, config, log_level, output):
+    # set log level
+    logging.basicConfig(level=log_level)
+
     # ignore torch warnings
     warnings.filterwarnings("ignore")
 
