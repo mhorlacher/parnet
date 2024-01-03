@@ -7,7 +7,7 @@ with open('requirements.txt', 'r') as f:
 
 # %%
 setup(name='parnet',
-      version='0.1.0',
+      version='0.1.1',
       description='A PyTorch extension of the RBPNet model as described in Horlacher et al. (2023), DOI: https://doi.org/10.1186/s13059-023-03015-7.',
       url='http://github.com/mhorlacher/parnet',
       author='Marc Horlacher',
