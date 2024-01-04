@@ -76,8 +76,8 @@ class Fasta():
         """
         try:
             import pysam
-        except:
-            raise ModuleNotFoundError('Please install pyBigWig. See https://github.com/pysam-developers/pysam')
+        except ModuleNotFoundError:
+            raise ModuleNotFoundError('Please install pysam. See https://github.com/pysam-developers/pysam')
 
         self.mask_noncanonical_bases = mask_noncanonical_bases
         self._fasta = pysam.FastaFile(filepath)
