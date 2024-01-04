@@ -2,7 +2,7 @@ import click
 import tensorflow as tf
 import tensorflow_datasets as tfds
 
-from parnet.io.bioIO import DataSpec, Bed
+from parnet.data.bioIO import DataSpec, Bed
 
 def build_tf_dataset(bed, dataspec, target_size, min_height):
     ds = tf.data.Dataset.from_generator(lambda: (dataspec(row['chrom'], row['start'], row['end'], row['strand'], target_size) for row in Bed(bed)), output_signature=dataspec.tf_signature)

@@ -17,7 +17,7 @@ import torch
 import torch.nn as nn
 import pytorch_lightning as pl
 
-from parnet.io.datasets import TFDSDataset
+from parnet.data.datasets import TFDSDataset
 from parnet.losses import MultinomialNLLLossFromLogits
 
 # %%
