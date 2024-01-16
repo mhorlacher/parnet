@@ -1,0 +1,25 @@
+# conda_recipe/meta.yaml
+package:
+  name: your_package_name
+  version: "0.1"
+
+source:
+  path: https://github.com/mhorlacher/parnet
+
+build:
+  number: 0
+  script: "{{ PYTHON }} -m pip install . -vv"
+
+requirements:
+  build:
+    - python
+    - setuptools
+
+  run:
+    - python
+    # add your runtime dependencies here
+
+about:
+  home: https://github.com/mhorlacher/parnet
+  license: Apache-2.0
+  summary: A multi-task model for protein-RNA interaction prediction. 
