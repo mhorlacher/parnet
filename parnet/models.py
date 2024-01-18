@@ -1,11 +1,14 @@
 # %%
 import sys
+import logging
 
 import gin
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 # %%
+from parnet.utils import sequence_to_onehot
 from parnet.layers import StemConv1D, LinearProjection, ResConvBlock1D
 
 # %%
@@ -31,7 +34,7 @@ class RBPNet(nn.Module):
 
         self.stem = StemConv1D()
         self.body = nn.Sequential(
-            *[ResConvBlock1D(dilation=int(dilation**i)) for i in range(9)]
+            *[ResConvBlock1D(dilation=int(dilation**i)) for i in range(layers)]
         )
         self.head = head_layer(num_tasks)
 
@@ -40,8 +43,33 @@ class RBPNet(nn.Module):
         # number of parameters. 
         _ = self({'sequence': torch.zeros(2, 4, 100, dtype=torch.float32)})
 
-    def forward(self, inputs, **kwargs):
+    def forward(self, inputs, to_probs=False, **kwargs):
+        logging.debug(f"Predict on sequence inputs with shape {inputs['sequence'].shape} and dtype {inputs['sequence'].dtype}.")
+
         x = self.stem(inputs['sequence'])
         x = self.body(x)
         x = self.head(x)
+
+        # Convert logits to probabilities if requested. 
+        if to_probs:
+            x = torch.softmax(x, dim=-1)
+
         return x
+    
+    def predict_from_sequence(self, sequence, alphabet='ACGT', **kwargs):
+        """Predicts RBP binding probabilities from a sequence.
+
+        Args:
+            sequence (str): Sequence to predict from.
+            alphabet (dict, optional): Alphabet to use for encoding the sequence. Defaults to 'ACGT'. 
+
+        Returns:
+            torch.Tensor: Predicted binding probabilities.
+        """
+    
+        # One-hot encode sequence, add batch dimension and cast to float. 
+        sequence_onehot = sequence_to_onehot(sequence, alphabet=alphabet)
+        sequence_onehot = torch.unsqueeze(sequence_onehot, dim=0).float()
+
+        # Predict and remove batch dimension of size 1. 
+        return self({'sequence': sequence_onehot}, **kwargs)[0]
