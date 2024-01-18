@@ -50,9 +50,15 @@ class RBPNet(nn.Module):
         x = self.body(x)
         x = self.head(x)
 
-        # Convert logits to probabilities if requested. 
-        if to_probs:
-            x = torch.softmax(x, dim=-1)
+        if isinstance(x, torch.Tensor):
+            x = {'total': x}
+
+        # # Convert logits to probabilities if requested. 
+        # if to_probs:
+        #     if isinstance(x, torch.Tensor):
+        #         x = torch.softmax(x, dim=-1)
+        #     else:
+        #         raise NotImplementedError()
 
         return x
     

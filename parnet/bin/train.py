@@ -60,10 +60,12 @@ class LightningModel(pl.LightningModule):
 
     def training_step(self, batch, batch_idx=None, **kwargs):
         inputs, y = batch
-        y = y['total']
+        # y = y['total']
         y_pred = self.forward(inputs)
-        # log total counts
-        self.log('log10-1p_total_counts', torch.log10(y.sum()+1), on_step=True, logger=True)
+
+        # log counts
+        self.log('log10-1p_total_counts', torch.log10(y['total'].sum()+1), on_step=True, logger=True)
+        self.log('log10-1p_control_counts', torch.log10(y['control'].sum()+1), on_step=True, logger=True)
 
         loss = self.compute_and_log_loss(y, y_pred, partition='TRAIN')
         self.compute_and_log_metics(y, y_pred, partition='TRAIN')
