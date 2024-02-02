@@ -1,5 +1,6 @@
 # %%
 import sys
+import logging
 
 import gin
 import torch
@@ -91,3 +92,62 @@ class LinearProjection(nn.Module):
         if self.act is not None:
             x = self.act(x)
         return x
+
+# %%
+@gin.configurable()
+class SequenceLinearMix(nn.Module):
+    # TODO: Implement. 
+    def __init__(self, num_tasks):
+        super().__init__()
+
+        self.gloabel_avg_pool = nn.AdaptiveAvgPool1d(1)
+        self.dense = nn.LazyLinear(num_tasks)
+    
+    def forward(self, inputs):
+        # inputs should have shape [batch, hidden_dim, length]
+
+        x = torch.squeeze(self.gloabel_avg_pool(inputs)) # --> [batch, hidden_dim]
+        logging.debug(f"x=torch.squeeze(self.gloabel_avg_pool(inputs)): {x.shape}")
+
+        x = self.dense(x) # --> [batch, num_tasks]
+        logging.debug(f"self.dense(x): {x.shape}")
+
+        return x
+
+# %%
+@gin.configurable()
+class AdditiveMix(nn.Module):
+    def __init__(self, num_tasks, head_layer=LinearProjection, mix_coeff_layer=SequenceLinearMix):
+        super().__init__()
+
+        self.head_target = head_layer(num_tasks)
+        self.head_control = head_layer(num_tasks)
+        self.mix_coeff = mix_coeff_layer(num_tasks)
+    
+    def forward(self, inputs, **kwargs):
+        # inputs should have shape [batch, hidden_dim, length]
+
+        # project input feature map to logits for target and control --> [batch, num_tasks, length]
+        track_target = self.head_target(inputs)
+        track_control = self.head_control(inputs)
+
+        logging.debug(f"track_target.shape: {track_target.shape}, track_control.shape: {track_control.shape}")
+
+        # compute mixing coefficients --> [batch, num_tasks]
+        mix_coeff = self.mix_coeff(inputs)
+        mix_coeff = torch.unsqueeze(mix_coeff, dim=-1)
+
+        logging.debug(f"mix_coeff.shape: {mix_coeff.shape}")
+
+        # additive mixing of target and control tracks with control track weigthed 
+        # by the mixing coefficient --> [batch, num_tasks, length]
+        track_target = (track_target - torch.logsumexp(track_target, dim=-1, keepdim=True))
+        track_control = (track_control - torch.logsumexp(track_control, dim=-1, keepdim=True))
+        track_total = torch.logsumexp(torch.stack([mix_coeff + track_target, track_control], dim=0), dim=0)
+
+        return {
+            'target': track_target,
+            'control': track_control,
+            'total': track_total,
+            # 'mix_coeff': mix_coeff, # TODO: Add this. 
+        }

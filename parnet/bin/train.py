@@ -17,12 +17,12 @@ import torch
 import torch.nn as nn
 import pytorch_lightning as pl
 
-from parnet.io.datasets import TFDSDataset
+from parnet.data.datasets import TFDSDataset
 from parnet.losses import MultinomialNLLLossFromLogits
 
 # %%
 class LightningModel(pl.LightningModule):
-    def __init__(self, model, loss=None, optimizer=None, metrics=None):
+    def __init__(self, model, use_control=False, loss=None, optimizer=None, metrics=None):
         if loss is None:
             raise ValueError('loss must be specified.')
         if optimizer is None:
@@ -33,17 +33,29 @@ class LightningModel(pl.LightningModule):
 
         # loss
         self.loss_fn = nn.ModuleDict({
-            'TRAIN': loss(),
-            'VAL': loss(),
+            'TRAIN_total': loss(),
+            'VAL_total': loss(),
         })
+        if use_control:
+            self.loss_fn['TRAIN_control'] = loss()
+            self.loss_fn['VAL_control'] = loss()
         
         # metrics
         if metrics is None:
             metrics = {}
+
         self.metrics = nn.ModuleDict({
-            'TRAIN': nn.ModuleDict({name: metric() for name, metric in metrics.items()}),
-            'VAL': nn.ModuleDict({name: metric() for name, metric in metrics.items()}),
+            'TRAIN_total': nn.ModuleDict({name: metric() for name, metric in metrics.items()}),
+            'VAL_total': nn.ModuleDict({name: metric() for name, metric in metrics.items()}),
         })
+        if use_control:
+            self.metrics['TRAIN_control'] = nn.ModuleDict({name: metric() for name, metric in metrics.items()})
+            self.metrics['VAL_control'] = nn.ModuleDict({name: metric() for name, metric in metrics.items()})
+        
+        # self.metrics = nn.ModuleDict({
+        #     'TRAIN': nn.ModuleDict({name: metric() for name, metric in metrics.items()}),
+        #     'VAL': nn.ModuleDict({name: metric() for name, metric in metrics.items()}),
+        # })
         
         # optimizer
         self.optimizer_cls = optimizer
@@ -60,39 +72,50 @@ class LightningModel(pl.LightningModule):
 
     def training_step(self, batch, batch_idx=None, **kwargs):
         inputs, y = batch
-        y = y['total']
+        # y = y['total']
         y_pred = self.forward(inputs)
-        # log total counts
-        self.log('log10-1p_total_counts', torch.log10(y.sum()+1), on_step=True, logger=True)
 
+        # log counts
+        self.log('log10-1p_total_counts', torch.log10(y['total'].sum()+1), on_step=True, logger=True)
+        if 'control' in y:
+            self.log('log10-1p_control_counts', torch.log10(y['control'].sum()+1), on_step=True, logger=True)
+
+        # compute loss across output tracks, i.e. total (+ control, if available)
         loss = self.compute_and_log_loss(y, y_pred, partition='TRAIN')
+        
         self.compute_and_log_metics(y, y_pred, partition='TRAIN')
+         
         return loss
 
     def validation_step(self, batch, batch_idx=None, **kwargs):
         inputs, y = batch
-        y = y['total']
+        # y = y['total']
         y_pred = self.forward(inputs)
         self.compute_and_log_loss(y, y_pred, partition='VAL')
         self.compute_and_log_metics(y, y_pred, partition='VAL')
     
     def compute_and_log_loss(self, y, y_pred, partition=None):
-        # on_step = False
-        # if partition == 'TRAIN':
-        #     on_step = True
+        # compute loss across output tracks, i.e. total (+ control, if available)
+        loss_sum = torch.tensor(0., dtype=torch.float32)
+        for track_name in set(y_pred.keys()).intersection({'total', 'control'}):
+            # 1. compute loss
+            loss = self.loss_fn[f'{partition}_{track_name}'](y[track_name], y_pred[track_name])
+            # 2. log loss
+            self.log(f'loss/{partition}_{track_name}', loss, on_step=True, on_epoch=True, prog_bar=False)
+            # 3. add loss to total loss
+            loss_sum += loss
 
-        loss = self.loss_fn[partition](y, y_pred)
-        self.log(f'loss/{partition}', loss, on_step=True, on_epoch=True, prog_bar=False)
-        return loss
+        return loss_sum
 
     def compute_and_log_metics(self, y, y_pred, partition=None):
-        # on_step = False
-        # if partition == 'TRAIN':
-        #     on_step = True
+        # for name, metric in self.metrics[partition].items():
+        #     metric(y, y_pred)
+        #     self.log(f'{name}/{partition}', metric, on_step=True, on_epoch=True, prog_bar=False)
 
-        for name, metric in self.metrics[partition].items():
-            metric(y, y_pred)
-            self.log(f'{name}/{partition}', metric, on_step=True, on_epoch=True, prog_bar=False)
+        for track_name in set(y_pred.keys()).intersection({'total', 'control'}):
+            for metric_name, metric in self.metrics[f'{partition}_{track_name}'].items():
+                metric(y[track_name], y_pred[track_name])
+                self.log(f'{metric_name}/{partition}_{track_name}', metric, on_step=True, on_epoch=True, prog_bar=False)
 
 # %%
 def _make_loggers(output_path, loggers):
@@ -121,6 +144,7 @@ def train(
     metrics=None, 
     optimizer=torch.optim.Adam, 
     batch_size=128, 
+    use_control=False,
     shuffle=None, # Shuffle is handled by TFDS. Any value >0 will enable 'shuffle_files' in TFDS and call 'ds.shuffle(x)' on the dataset.
     **kwargs
     ):
@@ -131,7 +155,7 @@ def train(
         logging.info(f'Shuffling dataset with buffer size {shuffle}.')
 
     # wrap model in LightningModule
-    lightning_model = LightningModel(model, loss=loss, metrics=metrics, optimizer=optimizer)
+    lightning_model = LightningModel(model, loss=loss, metrics=metrics, optimizer=optimizer, use_control=use_control)
 
     train_loader = torch.utils.data.DataLoader(dataset(tfds_filepath, split='train', shuffle=shuffle), batch_size=batch_size)
     val_loader = torch.utils.data.DataLoader(dataset(tfds_filepath, split='validation'), batch_size=batch_size)

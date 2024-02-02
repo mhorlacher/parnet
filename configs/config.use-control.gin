@@ -1,0 +1,28 @@
+from parnet import models
+from parnet import metrics
+from parnet import losses
+from parnet import layers
+from pytorch_lightning import loggers
+
+train.model = @models.RBPNet()
+train.loggers = [@loggers.TensorBoardLogger, @loggers.WandbLogger]
+train.loss = @losses.MultinomialNLLLossFromLogits
+train.metrics = {'pcc': @metrics.PearsonCorrCoeff, 'filtered_pcc': @metrics.FilteredPearsonCorrCoeff}
+train.batch_size = 4
+train.shuffle = 1000
+train.max_epochs = 3
+train.use_control=True
+
+# ------------------------- #
+# --- Global Parameters --- #
+# ------------------------- #
+
+models.RBPNet.num_tasks = 223
+models.RBPNet.head_layer = @layers.AdditiveMix
+
+# ------------------- #
+# --- WandbLogger --- # 
+# ------------------- #
+
+loggers.WandbLogger.project = 'RBPNet'
+loggers.WandbLogger.tags = ['test', 'local', 'Dec-2023']
