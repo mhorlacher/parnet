@@ -3,7 +3,7 @@ lightning>=2.1.2
 biopython==1.83
 click>=8.1.7
 tensorflow>=2.6.0
-tensorflow-datasets
+tensorflow-datasets==4.9.3
 torch
 pandas
 lightning
