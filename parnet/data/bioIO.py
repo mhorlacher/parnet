@@ -243,8 +243,12 @@ class DataSpec:
     extracted 1D bigWig stracks are stacked to two tensors for eCLIP and control, both of the shape (n_tasks, n_positions).
     """
 
-    def __init__(self, dataspec_yml, control=False):
+    def __init__(self, dataspec_yml=None, control=False):
         self.control = control
+
+        if dataspec_yml is None:
+            # don't initialize with config (useful for just getting features, tf_signature, etc.)
+            return
 
         # parse YAML dataspec
         with open(dataspec_yml) as f:
