@@ -44,6 +44,7 @@ class RBPNet(nn.Module):
         _ = self({'sequence': torch.zeros(2, 4, 100, dtype=torch.float32)})
 
     def forward(self, inputs, to_probs=False, **kwargs):
+        logging.debug(f"Received inputs of type: {type(inputs)}.")
         logging.debug(f"Predict on sequence inputs with shape {inputs['sequence'].shape} and dtype {inputs['sequence'].dtype}.")
 
         x = self.stem(inputs['sequence'])
@@ -78,4 +79,4 @@ class RBPNet(nn.Module):
         sequence_onehot = torch.unsqueeze(sequence_onehot, dim=0).float()
 
         # Predict and remove batch dimension of size 1. 
-        return self({'sequence': sequence_onehot}, **kwargs)[0]
+        return self.forward({'sequence': sequence_onehot}, **kwargs)
