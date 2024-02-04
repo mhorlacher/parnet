@@ -219,28 +219,28 @@ class DataSpec:
 
     Inputs and outputs are specified in a YAML file. The YAML file should have the following structure:
 
-     inputs:
-         sequence: path/to/fasta
-     outputs:
-         Task_1:
-             eCLIP:
-                 - path/to/eclip/counts/forward
-                 - path/to/eclip/counts/reverse
-             control:
-                 - path/to/control/counts/forward
-                 - path/to/control/counts/reverse
-         ...
-         Task_N:
-             eCLIP:
-                 - path/to/eclip/counts/forward
-                 - path/to/eclip/counts/reverse
-             control:
-                 - path/to/control/counts/forward
-                 - path/to/control/counts/reverse
+    inputs:
+        sequence: path/to/fasta
+        outputs:
+        Task_1:
+            eCLIP:
+                - path/to/eclip/counts/forward
+                - path/to/eclip/counts/reverse
+            control:
+                - path/to/control/counts/forward
+                - path/to/control/counts/reverse
+        ...
+        Task_N:
+            eCLIP:
+                - path/to/eclip/counts/forward
+                - path/to/eclip/counts/reverse
+            control:
+                - path/to/control/counts/forward
+                - path/to/control/counts/reverse
 
-     The YAML specification is then used to initialize Fasta and StrandedBigWig file-connectors, from which
-     samples can be fetch in the specified structure. For efficiency (storage and during training), the
-     extracted 1D bigWig stracks are stacked to two tensors for eCLIP and control, both of the shape (n_tasks, n_positions).
+    The YAML specification is then used to initialize Fasta and StrandedBigWig file-connectors, from which
+    samples can be fetch in the specified structure. For efficiency (storage and during training), the
+    extracted 1D bigWig stracks are stacked to two tensors for eCLIP and control, both of the shape (n_tasks, n_positions).
     """
 
     def __init__(self, dataspec_yml, control=False):
