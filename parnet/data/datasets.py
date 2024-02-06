@@ -22,14 +22,17 @@ class TFDSDataset(torch.utils.data.IterableDataset):
         
         self.split = split
         
-        # load tfds dataset to tf.data.Dataset
-        self._tf_dataset = tfds.load(data_name, data_dir=data_dir, shuffle_files=(shuffle is None))[split]
+        # TODO: I'm not sure if this is working. I want to TFDS to only use CPUs and leave 
+        # the GPUs for torch. Keep an eye on that. 
+        with tf.device("/CPU:0"):
+            # load tfds dataset to tf.data.Dataset
+            self._tf_dataset = tfds.load(data_name, data_dir=data_dir, shuffle_files=(shuffle is None))[split]
 
-        # Above we used 'shuffle_files' when loading the data which should give us some decent shuffling without filling up 
-        # any buffers. To further improve shuffling, users may additionally specify the size of a shuffle buffer (in #samples). 
-        if shuffle is not None:
-            assert shuffle > 0 and isinstance(shuffle, int)
-            self._tf_dataset = self._tf_dataset.shuffle(shuffle)
+            # Above we used 'shuffle_files' when loading the data which should give us some decent shuffling without filling up 
+            # any buffers. To further improve shuffling, users may additionally specify the size of a shuffle buffer (in #samples). 
+            if shuffle is not None:
+                assert shuffle > 0 and isinstance(shuffle, int)
+                self._tf_dataset = self._tf_dataset.shuffle(shuffle)
     
     def _format_example(self, example):
         example = {
