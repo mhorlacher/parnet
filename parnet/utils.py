@@ -22,7 +22,8 @@ def _set_tf_dynamic_memory_growth():
     # Make sure that tensorflow doesn't gobble up all GPU memory
     physical_devices = tf.config.list_physical_devices('GPU')
     try:
-        tf.config.experimental.set_memory_growth(physical_devices[0], True)
+        for device in physical_devices:
+            tf.config.experimental.set_memory_growth(device, True)
     except:
         # Invalid device or cannot modify virtual devices once initialized.
         pass
