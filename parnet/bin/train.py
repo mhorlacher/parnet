@@ -96,7 +96,7 @@ class LightningModel(pl.LightningModule):
     
     def compute_and_log_loss(self, y, y_pred, partition=None):
         # compute loss across output tracks, i.e. total (+ control, if available)
-        loss_sum = torch.tensor(0., dtype=torch.float32)
+        loss_sum = torch.tensor(0., dtype=torch.float32).to(y_pred['total'].device)
         for track_name in set(y_pred.keys()).intersection({'total', 'control'}):
             # 1. compute loss
             loss = self.loss_fn[f'{partition}_{track_name}'](y[track_name], y_pred[track_name])
@@ -203,7 +203,9 @@ def main(tfds, config, log_level, output):
 
     # create output directory
     output_path = Path(f'{output}/{datetime.datetime.now().strftime("%Y%m%d-%H%M%S")}')
-    output_path.mkdir(parents=True)
+    if output_path.exists():
+        logging.warning(f'Output path {output_path} already exists. Overwriting.')
+    output_path.mkdir(parents=True, exist_ok=True)
 
     # copy gin config
     if config is not None:
