@@ -1,13 +1,14 @@
 # %%
 import sys
 
+import gin
 import torch
 import numpy as np
 import tensorflow as tf  # TODO: Remove this dependency. See https://www.tensorflow.org/datasets/tfless_tfds#use_with_pytorch.
 import tensorflow_datasets as tfds
 import datasets
 
-
+@gin.configurable(denylist=["data_dir", "split"])
 class TFDSDataset(torch.utils.data.IterableDataset):
     def __init__(self, data_dir, split, data_name="parnet_dataset", shuffle=None):
         """Dataset wrapper for tfds datasets.
@@ -86,6 +87,7 @@ class TFDSDataset(torch.utils.data.IterableDataset):
 
 
 # %%
+@gin.configurable(denylist=["data_dir", "split"])
 class MaskedTFDSDataset(TFDSDataset):
     def __init__(self, *args, mask_filepaths=[], **kwargs):
         super().__init__(*args, **kwargs)
@@ -140,13 +142,14 @@ class MaskedTFDSDataset(TFDSDataset):
         return example
 
 
+@gin.configurable(denylist=["hfds_path", "split"])
 class HFDSDataset(torch.utils.data.Dataset):
-    def __init__(self, hfds_path, split, shuffle=False):
+    def __init__(self, hfds_path, split, shuffle=True, keep_in_memory=False):
         super(HFDSDataset).__init__()
 
-        self._hfds = datasets.load_from_disk(hfds_path)[split]
+        self._hfds = datasets.load_from_disk(hfds_path, keep_in_memory=keep_in_memory)[split]
         if shuffle:
-            self._hfds = self._hfds.shuffle()
+            self._hfds = self._hfds.shuffle(keep_in_memory=keep_in_memory)
         self._hfds.with_format("torch")
 
     def _format_example(self, example):
