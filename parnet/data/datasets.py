@@ -140,9 +140,9 @@ class MaskedTFDSDataset(TFDSDataset):
         return example
 
 
-class TorchHFDSDataset(torch.utils.data.Dataset):
+class HFDSDataset(torch.utils.data.Dataset):
     def __init__(self, hfds_path, split):
-        super(TorchHFDSDataset).__init__()
+        super(HFDSDataset).__init__()
 
         self._hfds = datasets.load_from_disk(hfds_path)[split]
         self._hfds.with_format("torch")
