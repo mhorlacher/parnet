@@ -8,6 +8,7 @@ import tensorflow as tf  # TODO: Remove this dependency. See https://www.tensorf
 import tensorflow_datasets as tfds
 import datasets
 
+
 @gin.configurable(denylist=["data_dir", "split"])
 class TFDSDataset(torch.utils.data.IterableDataset):
     def __init__(self, data_dir, split, data_name="parnet_dataset", shuffle=None):
@@ -147,7 +148,9 @@ class HFDSDataset(torch.utils.data.Dataset):
     def __init__(self, hfds_path, split, shuffle=True, keep_in_memory=False):
         super(HFDSDataset).__init__()
 
-        self._hfds = datasets.load_from_disk(hfds_path, keep_in_memory=keep_in_memory)[split]
+        self._hfds = datasets.load_from_disk(hfds_path, keep_in_memory=keep_in_memory)[
+            split
+        ]
         if shuffle:
             self._hfds = self._hfds.shuffle(keep_in_memory=keep_in_memory)
         self._hfds.with_format("torch")
@@ -157,17 +160,18 @@ class HFDSDataset(torch.utils.data.Dataset):
             "inputs": {
                 "sequence": torch.sparse_coo_tensor(**example["inputs"]["sequence"])
                 .to_dense()
+                .to(torch.float32)
                 .T
             },
             "outputs": {
                 # Outputs stay the same but will be renamed for compatibility.
                 # (TODO: Modify upstream code to accept names from dataset as-is)
-                "total": torch.sparse_coo_tensor(
-                    **example["outputs"]["eCLIP"]
-                ).to_dense(),
-                "control": torch.sparse_coo_tensor(
-                    **example["outputs"]["control"]
-                ).to_dense(),
+                "total": torch.sparse_coo_tensor(**example["outputs"]["eCLIP"])
+                .to_dense()
+                .to(torch.float32),
+                "control": torch.sparse_coo_tensor(**example["outputs"]["control"])
+                .to_dense()
+                .to(torch.float32),
             },
         }
 
