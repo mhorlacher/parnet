@@ -141,10 +141,12 @@ class MaskedTFDSDataset(TFDSDataset):
 
 
 class HFDSDataset(torch.utils.data.Dataset):
-    def __init__(self, hfds_path, split):
+    def __init__(self, hfds_path, split, shuffle=False):
         super(HFDSDataset).__init__()
 
         self._hfds = datasets.load_from_disk(hfds_path)[split]
+        if shuffle:
+            self._hfds = self._hfds.shuffle()
         self._hfds.with_format("torch")
 
     def _format_example(self, example):
@@ -171,6 +173,9 @@ class HFDSDataset(torch.utils.data.Dataset):
 
     def process_example(self, example):
         return example
+
+    def __len__(self):
+        return len(self._hfds)
 
     def __getitem__(self, idx):
         example = self._hfds[idx]
