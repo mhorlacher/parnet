@@ -5,6 +5,7 @@ import torch
 import numpy as np
 import tensorflow as tf  # TODO: Remove this dependency. See https://www.tensorflow.org/datasets/tfless_tfds#use_with_pytorch.
 import tensorflow_datasets as tfds
+import datasets
 
 
 class TFDSDataset(torch.utils.data.IterableDataset):
@@ -137,6 +138,45 @@ class MaskedTFDSDataset(TFDSDataset):
         """
         example["outputs"] = self._mask(example["outputs"], self.composite_mask)
         return example
+
+
+class TorchHFDSDataset(torch.utils.data.Dataset):
+    def __init__(self, hfds_path, split):
+        super(TorchHFDSDataset).__init__()
+
+        self._hfds = datasets.load_from_disk(hfds_path)[split]
+        self._hfds.with_format("torch")
+
+    def _format_example(self, example):
+        example = {
+            "inputs": {
+                "sequence": torch.sparse_coo_tensor(**example["inputs"]["sequence"])
+                .to_dense()
+                .T
+            },
+            "outputs": {
+                # Outputs stay the same but will be renamed for compatibility.
+                # (TODO: Modify upstream code to accept names from dataset as-is)
+                "total": torch.sparse_coo_tensor(
+                    **example["outputs"]["eCLIP"]
+                ).to_dense(),
+                "control": torch.sparse_coo_tensor(
+                    **example["outputs"]["control"]
+                ).to_dense(),
+            },
+        }
+
+        # return as tf.Tensor, need to be converted to torch tensors
+        return example
+
+    def process_example(self, example):
+        return example
+
+    def __getitem__(self, idx):
+        example = self._hfds[idx]
+        example = self.process_example(self._format_example(example))
+
+        return example["inputs"], example["outputs"]
 
 
 # %%
