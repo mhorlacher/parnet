@@ -6,12 +6,13 @@ import gin
 import torch
 import torch.nn as nn
 
+
 # %%
 @gin.configurable()
 class StemConv1D(nn.Module):
-    """Class to be used as first layer of a model. 
+    """Class to be used as first layer of a model.
 
-    Applies an ordenary 1D convolution, followed by  batch normalization, activation and dropout. Seperating this 
+    Applies an ordenary 1D convolution, followed by  batch normalization, activation and dropout. Seperating this
     layer from the rest of the model allows us to inject hyperparameters for the first layer only via gin-config.
     """
 
@@ -26,11 +27,11 @@ class StemConv1D(nn.Module):
         """
         super().__init__()
 
-        self.conv1d = nn.LazyConv1d(filters, kernel_size, padding='same')
+        self.conv1d = nn.LazyConv1d(filters, kernel_size, padding="same")
         self.batch_norm = nn.BatchNorm1d(filters)
         self.act = activation
         self.dropout = nn.Dropout1d(dropout) if dropout is not None else None
-    
+
     def forward(self, x, **kwargs):
         x = self.conv1d(x)
         x = self.batch_norm(x)
@@ -39,19 +40,30 @@ class StemConv1D(nn.Module):
             x = self.dropout(x)
         return x
 
+
 # %%
 @gin.configurable()
 class ResConvBlock1D(nn.Module):
-    # TODO: Add documentation. 
-    def __init__(self, filters=128, kernel_size=3, dropout=0.25, activation=nn.ReLU(), dilation=1, residual=True):
+    # TODO: Add documentation.
+    def __init__(
+        self,
+        filters=128,
+        kernel_size=3,
+        dropout=0.25,
+        activation=nn.ReLU(),
+        dilation=1,
+        residual=True,
+    ):
         super().__init__()
 
-        self.conv1d = nn.LazyConv1d(filters, kernel_size=kernel_size, dilation=int(dilation), padding='same')
+        self.conv1d = nn.LazyConv1d(
+            filters, kernel_size=kernel_size, dilation=int(dilation), padding="same"
+        )
         self.batch_norm = nn.BatchNorm1d(filters)
         self.act = activation
         self.dropout = nn.Dropout1d(dropout) if dropout is not None else None
         self.residual = residual
-    
+
     def forward(self, inputs, **kwargs):
         x = inputs
 
@@ -73,6 +85,7 @@ class ResConvBlock1D(nn.Module):
 
         return x
 
+
 # %%
 @gin.configurable()
 class LinearProjection(nn.Module):
@@ -86,44 +99,48 @@ class LinearProjection(nn.Module):
 
         self.pointwise_conv = nn.LazyConv1d(out_features, kernel_size=1, bias=bias)
         self.act = activation
-    
+
     def forward(self, x):
         x = self.pointwise_conv(x)
         if self.act is not None:
             x = self.act(x)
         return x
 
+
 # %%
 @gin.configurable()
 class SequenceLinearMix(nn.Module):
-    # TODO: Implement. 
+    # TODO: Implement.
     def __init__(self, num_tasks):
         super().__init__()
 
         self.gloabel_avg_pool = nn.AdaptiveAvgPool1d(1)
         self.dense = nn.LazyLinear(num_tasks)
-    
+
     def forward(self, inputs):
         # inputs should have shape [batch, hidden_dim, length]
 
-        x = torch.squeeze(self.gloabel_avg_pool(inputs)) # --> [batch, hidden_dim]
+        x = torch.squeeze(self.gloabel_avg_pool(inputs))  # --> [batch, hidden_dim]
         logging.debug(f"x=torch.squeeze(self.gloabel_avg_pool(inputs)): {x.shape}")
 
-        x = self.dense(x) # --> [batch, num_tasks]
+        x = self.dense(x)  # --> [batch, num_tasks]
         logging.debug(f"self.dense(x): {x.shape}")
 
         return x
 
+
 # %%
 @gin.configurable()
 class AdditiveMix(nn.Module):
-    def __init__(self, num_tasks, head_layer=LinearProjection, mix_coeff_layer=SequenceLinearMix):
+    def __init__(
+        self, num_tasks, head_layer=LinearProjection, mix_coeff_layer=SequenceLinearMix
+    ):
         super().__init__()
 
         self.head_target = head_layer(num_tasks)
         self.head_control = head_layer(num_tasks)
         self.mix_coeff = mix_coeff_layer(num_tasks)
-    
+
     def forward(self, inputs, **kwargs):
         # inputs should have shape [batch, hidden_dim, length]
 
@@ -131,7 +148,9 @@ class AdditiveMix(nn.Module):
         track_target = self.head_target(inputs)
         track_control = self.head_control(inputs)
 
-        logging.debug(f"track_target.shape: {track_target.shape}, track_control.shape: {track_control.shape}")
+        logging.debug(
+            f"track_target.shape: {track_target.shape}, track_control.shape: {track_control.shape}"
+        )
 
         # compute mixing coefficients --> [batch, num_tasks]
         mix_coeff = self.mix_coeff(inputs)
@@ -139,15 +158,21 @@ class AdditiveMix(nn.Module):
 
         logging.debug(f"mix_coeff.shape: {mix_coeff.shape}")
 
-        # additive mixing of target and control tracks with control track weigthed 
+        # additive mixing of target and control tracks with control track weigthed
         # by the mixing coefficient --> [batch, num_tasks, length]
-        track_target = (track_target - torch.logsumexp(track_target, dim=-1, keepdim=True))
-        track_control = (track_control - torch.logsumexp(track_control, dim=-1, keepdim=True))
-        track_total = torch.logsumexp(torch.stack([mix_coeff + track_target, track_control], dim=0), dim=0)
+        track_target = track_target - torch.logsumexp(
+            track_target, dim=-1, keepdim=True
+        )
+        track_control = track_control - torch.logsumexp(
+            track_control, dim=-1, keepdim=True
+        )
+        track_total = torch.logsumexp(
+            torch.stack([mix_coeff + track_target, track_control], dim=0), dim=0
+        )
 
         return {
-            'target': track_target,
-            'control': track_control,
-            'total': track_total,
-            # 'mix_coeff': mix_coeff, # TODO: Add this. 
+            "target": track_target,
+            "control": track_control,
+            "total": track_total,
+            # 'mix_coeff': mix_coeff, # TODO: Add this.
         }
