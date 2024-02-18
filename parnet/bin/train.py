@@ -186,6 +186,7 @@ def _make_callbacks(output_path, validation=False):
 @gin.configurable(denylist=["tfds_filepath", "output_path"])
 def train(
     tfds_filepath,
+    just_print_model,
     output_path,
     dataset=TFDSDataset,
     model=None,
@@ -210,6 +211,10 @@ def train(
     lightning_model = LightningModel(
         model, loss=loss, metrics=metrics, optimizer=optimizer, use_control=use_control
     )
+
+    if just_print_model:
+        print(model)
+        exit()
 
     train_loader = torch.utils.data.DataLoader(
         dataset(tfds_filepath, split="train", shuffle=shuffle), batch_size=batch_size
@@ -244,11 +249,12 @@ def train(
 
 # %%
 @click.command()
-@click.argument("tfds", required=True, type=str)
+@click.argument("tfds", required=False, type=str, default=None)
 @click.option("--config", type=str, default=None)
 @click.option("--log-level", type=str, default="WARNING")
-@click.option("-o", "--output", required=True)
-def main(tfds, config, log_level, output):
+@click.option("--just-print-model", is_flag=True, default=False)
+@click.option("-o", "--output", default=None)
+def main(tfds, config, log_level, just_print_model, output):
     # set log level
     logging.basicConfig(level=log_level)
 
@@ -262,7 +268,7 @@ def main(tfds, config, log_level, output):
     # create output directory
     output_path = Path(f'{output}/{datetime.datetime.now().strftime("%Y%m%d-%H%M%S")}')
     if output_path.exists():
-        logging.warning(f'Output path {output_path} already exists. Overwriting.')
+        logging.warning(f"Output path {output_path} already exists. Overwriting.")
     output_path.mkdir(parents=True, exist_ok=True)
 
     # copy gin config
@@ -270,4 +276,4 @@ def main(tfds, config, log_level, output):
         shutil.copy(config, str(output_path / "config.gin"))
 
     # launch training (parameters are configured exclusively via gin)
-    train(tfds, output_path)
+    train(tfds, just_print_model, output_path)
