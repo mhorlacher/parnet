@@ -86,6 +86,54 @@ class ResConvBlock1D(nn.Module):
         return x
 
 
+@gin.configurable()
+class EnhancedResConvBlock1D(nn.Module):
+    # TODO: Add documentation.
+    def __init__(
+        self,
+        filters=256,
+        pointwise_filters_factor=1.5,
+        kernel_size=5,
+        dropout=0.1,
+        activation=nn.GELU(),
+        dilation=1,
+        residual=True,
+    ):
+        super().__init__()
+
+        self.conv1d = nn.LazyConv1d(
+            filters, kernel_size=kernel_size, dilation=int(dilation), padding="same"
+        )
+        self.pointwise = nn.LazyConv1d(
+            int(filter * pointwise_filters_factor), kernel_size=1
+        )
+        self.batch_norm = nn.BatchNorm1d(filters)
+        self.act = activation
+        self.dropout = nn.Dropout1d(dropout) if dropout is not None else None
+        self.residual = residual
+
+    def forward(self, inputs, **kwargs):
+        x = inputs
+
+        try:
+            x = self.conv1d(x)
+        except:
+            print(x.shape, x.dtype, file=sys.stderr)
+            raise
+
+        x = self.batch_norm(x)
+        x = self.act(x)
+        # dropout
+        if self.dropout is not None:
+            x = self.dropout(x)
+
+        # residual
+        if self.residual:
+            x = inputs + x
+
+        return x
+
+
 # %%
 @gin.configurable()
 class LinearProjection(nn.Module):
