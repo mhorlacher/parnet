@@ -152,7 +152,7 @@ class HFDSDataset(torch.utils.data.Dataset):
             split
         ]
         if shuffle:
-            self._hfds = self._hfds.shuffle(keep_in_memory=keep_in_memory)
+            self._hfds = self._hfds.shuffle(seed=42, keep_in_memory=keep_in_memory)
         self._hfds.with_format("torch")
 
     def _format_example(self, example):
