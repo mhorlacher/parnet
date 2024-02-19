@@ -5,6 +5,7 @@ import logging
 import gin
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 
 # %%
@@ -94,7 +95,7 @@ class EnhancedResConvBlock1D(nn.Module):
         filters=256,
         pointwise_filters_factor=1.5,
         kernel_size=5,
-        dropout=0.1,
+        dropout=0.3,
         activation=nn.GELU(),
         dilation=1,
         residual=True,
@@ -102,27 +103,31 @@ class EnhancedResConvBlock1D(nn.Module):
         super().__init__()
 
         self.conv1d = nn.LazyConv1d(
-            filters, kernel_size=kernel_size, dilation=int(dilation), padding="same"
+            filters, kernel_size, dilation=int(dilation), padding="same"
         )
+        self.conv1d_norm = nn.BatchNorm1d(filters)
         self.pointwise = nn.LazyConv1d(
-            int(filter * pointwise_filters_factor), kernel_size=1
+            int(filters * pointwise_filters_factor), kernel_size=1
         )
-        self.batch_norm = nn.BatchNorm1d(filters)
+        self.pointwise_norm = nn.BatchNorm1d(int(filters * pointwise_filters_factor))
+
         self.act = activation
-        self.dropout = nn.Dropout1d(dropout) if dropout is not None else None
+        self.dropout = nn.Dropout1d(dropout) if dropout > 0.0 else None
         self.residual = residual
 
     def forward(self, inputs, **kwargs):
         x = inputs
 
-        try:
-            x = self.conv1d(x)
-        except:
-            print(x.shape, x.dtype, file=sys.stderr)
-            raise
-
-        x = self.batch_norm(x)
+        # conv1d
+        x = self.conv1d(x)
+        x = self.conv1d_norm(x)
         x = self.act(x)
+
+        # pointwise
+        x = self.pointwise(x)
+        x = self.pointwise_norm(x)
+        x = self.act(x)
+
         # dropout
         if self.dropout is not None:
             x = self.dropout(x)
