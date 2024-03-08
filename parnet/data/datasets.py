@@ -309,12 +309,15 @@ class BorzoiSquashScaledTFDSDataset(TFDSDataset):
         self.power_ratio = power_ratio
 
     @classmethod
-    def squash_scale_value(value: float, upper_threshold_to_sqrt: float, power_ratio: float = 0.75):
-        power_ratio_transformed_value = value**power_ratio
+    def squash_scale_value(value: float, upper_threshold_to_sqrt: float, power_ratio: float = 0.75, apply_floor_to_return_value: bool: True) -> float:
+        transformed_value = value**power_ratio
         if power_ratio_transformed_value > upper_threshold_to_sqrt:
-            return upper_threshold_to_sqrt + np.sqrt(power_ratio_transformed_value - upper_threshold_to_sqrt)
-        else:
-            return power_ratio_transformed_value
+            transformed_value = upper_threshold_to_sqrt + np.sqrt(transformed_value - upper_threshold_to_sqrt)
+
+        if apply_floor_to_return_value:
+            transformed_value = np.floor(transformed_value)
+
+        return transformed_value
 
     def _squash_scale(self, structure):
         try:
@@ -323,8 +326,8 @@ class BorzoiSquashScaledTFDSDataset(TFDSDataset):
             return tf.nest.map_structure(
                 lambda tensor: torch.where(
                     tensor > self.upper_threshold_to_sqrt,
-                    self.upper_threshold_to_sqrt + (tensor - self.upper_threshold_to_sqrt).sqrt(),
-                    tensor,
+                    torch.floor(self.upper_threshold_to_sqrt + (tensor - self.upper_threshold_to_sqrt).sqrt()),
+                    torch.floor(tensor),
                 ),
                 power_ratio_transformed_structure
             )
