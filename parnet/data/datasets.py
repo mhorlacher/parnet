@@ -284,23 +284,37 @@ class Basenji2SqrtSquashedTFDSDataset(TFDSDataset):
         return example
 
 
-# TODO: under dev.
 class BorzoiSquashScaledTFDSDataset(TFDSDataset):
+    """ From Linder et al 2023:
+    For each coverage track, bin values are exponentiated by 3/4.
+    If bin values are still larger than 384 after exponentiation,
+    additional `sqrt` is applied to the residual value.
+    """
+
     def __init__(self, *args, upper_threshold_to_sqrt: float, power_ratio: float = 0.75, **kwargs):
         super().__init__(*args, **kwargs)
         self.upper_threshold_to_sqrt = upper_threshold_to_sqrt
         self.power_ratio = power_ratio
 
+    @classmethod
+    def squash_scale_value(value: float, upper_threshold_to_sqrt: float, power_ratio: float = 0.75):
+        power_ratio_transformed_value = value**power_ratio
+        if power_ratio_transformed_value > upper_threshold_to_sqrt:
+            return upper_threshold_to_sqrt + np.sqrt(power_ratio_transformed_value - upper_threshold_to_sqrt)
+        else:
+            return power_ratio_transformed_value
+
     def _squash_scale(self, structure):
         try:
-            #TODO: verify: I think the sqrt is applied on the rest of (values-threshold)**(3/4), not on the full.
+            power_ratio_transformed_structure = tf.nest.map_structure(lambda tensor: tensor**self.power_ratio, structure)
+
             return tf.nest.map_structure(
                 lambda tensor: torch.where(
                     tensor > self.upper_threshold_to_sqrt,
-                    (tensor**self.power_ratio).sqrt(),
-                    (tensor**self.power_ratio),
+                    self.upper_threshold_to_sqrt + (tensor - self.upper_threshold_to_sqrt).sqrt(),
+                    tensor,
                 ),
-                structure,
+                power_ratio_transformed_structure
             )
         except:
             raise
