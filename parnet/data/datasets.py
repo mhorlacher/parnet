@@ -267,7 +267,7 @@ class Basenji2SqrtSoftClipTFDSDataset(TFDSDataset):
         self.upper_threshold_to_sqrt = upper_threshold_to_sqrt
 
     @classmethod
-    def soft_clip(value: float, upper_threshold_to_sqrt: float, apply_floor_to_return_value: bool: True) -> float:
+    def soft_clip_value(value: float, upper_threshold_to_sqrt: float, apply_floor_to_return_value: bool: True) -> float:
         sc_value = value
         if sc_value > upper_threshold_to_sqrt:
             sc_value = upper_threshold_to_sqrt + np.sqrt(sc_value - upper_threshold_to_sqrt)
