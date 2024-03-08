@@ -261,12 +261,24 @@ class MaskedTFDSDataset(TFDSDataset):
 #         for i in range(self.n):
 #             yield (torch.rand(16, 4, 101), torch.rand(16, 101, 7))
 
-class Basenji2SqrtSquashedTFDSDataset(TFDSDataset):
+class Basenji2SqrtSoftClipTFDSDataset(TFDSDataset):
     def __init__(self, *args, upper_threshold_to_sqrt: float, **kwargs):
         super().__init__(*args, **kwargs)
         self.upper_threshold_to_sqrt = upper_threshold_to_sqrt
 
-    def _squash(self, structure):
+    @classmethod
+    def soft_clip(value: float, upper_threshold_to_sqrt: float, apply_floor_to_return_value: bool: True) -> float:
+        sc_value = value
+        if sc_value > upper_threshold_to_sqrt:
+            sc_value = upper_threshold_to_sqrt + np.sqrt(sc_value - upper_threshold_to_sqrt)
+
+        if apply_floor_to_return_value:
+            sc_value = np.floor(sc_value)
+
+        return sc_value
+
+
+    def _soft_clip(self, structure):
         try:
             return tf.nest.map_structure(
                 lambda tensor: torch.where(
@@ -280,7 +292,7 @@ class Basenji2SqrtSquashedTFDSDataset(TFDSDataset):
             raise
 
     def process_example(self, example):
-        example['outputs'] = self._squash(example['outputs'])
+        example['outputs'] = self._soft_clip(example['outputs'])
         return example
 
 
