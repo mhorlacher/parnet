@@ -145,7 +145,7 @@ class MaskedTFDSDataset(TFDSDataset):
 
 @gin.configurable(denylist=["hfds_path", "split"])
 class HFDSDataset(torch.utils.data.Dataset):
-    def __init__(self, hfds_path, split, shuffle=True, keep_in_memory=False):
+    def __init__(self, hfds_path, split, shuffle=True, keep_in_memory=False, sequence_as_ids=False):
         super(HFDSDataset).__init__()
 
         self._hfds = datasets.load_from_disk(hfds_path, keep_in_memory=keep_in_memory)[
@@ -154,6 +154,8 @@ class HFDSDataset(torch.utils.data.Dataset):
         if shuffle:
             self._hfds = self._hfds.shuffle(seed=42, keep_in_memory=keep_in_memory)
         self._hfds.with_format("torch")
+
+        self.sequence_as_ids = sequence_as_ids
 
     def _format_example(self, example):
         example = {
@@ -174,6 +176,14 @@ class HFDSDataset(torch.utils.data.Dataset):
                 .to(torch.float32),
             },
         }
+
+        # let's turn the one-hot encoded sequence back into a sequence of ids..
+        # FIXME: This is a bit of a hack, we should probably write the HFDS to disk with the sequence as ids
+        # or better, just as a string of nucleotides. 
+        if self.sequence_as_ids:
+            x = (1 - torch.sum(example["inputs"]["sequence"], dim=0)) * 4 # we set 4 as the padding ID
+            x += torch.argmax(example["inputs"]["sequence"], dim=0) # ..and add the one-hot encoded nucleotide ids
+            example["inputs"]["sequence"] = x.long()
 
         # return as tf.Tensor, need to be converted to torch tensors
         return example
