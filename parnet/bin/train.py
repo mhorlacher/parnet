@@ -272,13 +272,14 @@ def main(data_path, config, log_level, just_print_model, output):
 
     # create output directory
     output_path = Path(f'{output}/{datetime.datetime.now().strftime("%Y%m%d-%H%M%S")}')
-    if output_path.exists():
-        logging.warning(f"Output path {output_path} already exists. Overwriting.")
-    output_path.mkdir(parents=True, exist_ok=True)
+    if not just_print_model:
+        if output_path.exists():
+            logging.warning(f"Output path {output_path} already exists. Overwriting.")
+        output_path.mkdir(parents=True, exist_ok=True)
 
-    # copy gin config
-    if config is not None:
-        shutil.copy(config, str(output_path / "config.gin"))
+        # copy gin config
+        if config is not None:
+            shutil.copy(config, str(output_path / "config.gin"))
 
     # launch training (parameters are configured exclusively via gin)
     train(data_path, just_print_model, output_path)
