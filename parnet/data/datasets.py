@@ -145,7 +145,7 @@ class MaskedTFDSDataset(TFDSDataset):
 
 @gin.configurable(denylist=["hfds_path", "split"])
 class HFDSDataset(torch.utils.data.Dataset):
-    def __init__(self, hfds_path, split, shuffle=True, keep_in_memory=False, sequence_as_ids=False):
+    def __init__(self, hfds_path, split, shuffle=True, keep_in_memory=False, sequence_as_ids=False, return_meta=False):
         super(HFDSDataset).__init__()
 
         self._hfds = datasets.load_from_disk(hfds_path, keep_in_memory=keep_in_memory)[
@@ -155,6 +155,7 @@ class HFDSDataset(torch.utils.data.Dataset):
             self._hfds = self._hfds.shuffle(seed=42, keep_in_memory=keep_in_memory)
         self._hfds.with_format("torch")
 
+        self.return_meta = return_meta
         self.sequence_as_ids = sequence_as_ids
 
     def _format_example(self, example):
@@ -175,7 +176,13 @@ class HFDSDataset(torch.utils.data.Dataset):
                 .to_dense()
                 .to(torch.float32),
             },
+            "meta": {
+                "name": example["meta"]["name"],
+            }
         }
+
+        if not self.return_meta:
+            del example["meta"]
 
         # let's turn the one-hot encoded sequence back into a sequence of ids..
         # FIXME: This is a bit of a hack, we should probably write the HFDS to disk with the sequence as ids
@@ -198,6 +205,8 @@ class HFDSDataset(torch.utils.data.Dataset):
         example = self._hfds[idx]
         example = self.process_example(self._format_example(example))
 
+        if self.return_meta:
+            return example["meta"], example["inputs"], example["outputs"]
         return example["inputs"], example["outputs"]
 
 
