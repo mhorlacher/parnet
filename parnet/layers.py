@@ -227,5 +227,5 @@ class AdditiveMix(nn.Module):
             "target": track_target,
             "control": track_control,
             "total": track_total,
-            # 'mix_coeff': mix_coeff, # TODO: Add this.
+            "mix_coeff": mix_coeff, # TODO: Add this.
         }
