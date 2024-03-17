@@ -17,6 +17,7 @@ import gin
 import torch
 import torch.nn as nn
 import pytorch_lightning as pl
+from torchmetrics import MeanMetric
 
 from parnet.data.datasets import TFDSDataset
 from parnet.losses import MultinomialNLLLossFromLogits
@@ -45,6 +46,9 @@ class LightningModel(pl.LightningModule):
         if use_control:
             self.loss_fn["TRAIN_control"] = loss()
             self.loss_fn["VAL_control"] = loss()
+        
+        # penalty loss
+        self.penalty_loss = MeanMetric()
 
         # metrics
         if metrics is None:
@@ -110,6 +114,12 @@ class LightningModel(pl.LightningModule):
         loss = self.compute_and_log_loss(y, y_pred, partition="TRAIN")
 
         self.compute_and_log_metics(y, y_pred, partition="TRAIN")
+
+        # log penalty and add to final loss
+        if "penalty_loss" in y_pred:
+            avg_penalty_loss = y_pred["penalty_loss"].mean()
+            loss += avg_penalty_loss
+            self.log("penalty_loss", avg_penalty_loss, on_step=True, on_epoch=True, prog_bar=False)
 
         return loss
 
