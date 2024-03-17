@@ -187,7 +187,7 @@ class IdentityPenality(nn.Module):
         self.factor = factor
     
     def __call__(self, track_target, track_control, mix_coeff):
-        return mix_coeff * self.factor
+        return F.sigmoid(mix_coeff) * self.factor
 
 # %%
 @gin.configurable()
