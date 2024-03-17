@@ -163,7 +163,6 @@ class LinearProjection(nn.Module):
 # %%
 @gin.configurable()
 class SequenceLinearMix(nn.Module):
-    # TODO: Implement.
     def __init__(self, num_tasks):
         super().__init__()
 
