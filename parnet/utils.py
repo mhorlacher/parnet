@@ -1,5 +1,6 @@
 import os
 
+import tensorflow as tf
 import torch
 import torch.nn.functional as F
 
@@ -46,3 +47,14 @@ def sequence_to_onehot(sequence, alphabet='ACGT'):
     sequence_onehot = F.one_hot(torch.tensor([alphabet.get(b, len(alphabet)) for b in sequence]), num_classes=len(alphabet)+1)[:, 0:len(alphabet)].T
 
     return sequence_onehot
+
+def to_sparse_tensor_dict(x: torch.Tensor):
+    x = x.to_sparse()
+    return {'indices': x.indices(), 'values': x.values(), 'size': x.size()}
+
+def sample_to_torch_sparse_tensor_dict(example):
+    return {
+        'meta': {'name': example['meta']['name'].numpy()},
+        'inputs': tf.nest.map_structure(lambda x: to_sparse_tensor_dict(torch.tensor(x.numpy())), example['inputs']),
+        'outputs': tf.nest.map_structure(lambda x: to_sparse_tensor_dict(torch.tensor(x.numpy())), example['outputs']),
+    }
