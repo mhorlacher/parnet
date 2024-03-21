@@ -183,7 +183,8 @@ class HFDSDataset(torch.utils.data.Dataset):
         if self.sequence_as_ids:
             x = (1 - torch.sum(example["inputs"]["sequence"], dim=0)) * 4 # we set 4 as the padding ID
             x += torch.argmax(example["inputs"]["sequence"], dim=0) # ..and add the one-hot encoded nucleotide ids
-            example["inputs"]["sequence"] = x.long()
+            example["inputs"]["input_ids"] = x.long()
+            example["inputs"]["attention_mask"] = (x != 4).float() # 4 is the padding ID
 
         # return as tf.Tensor, need to be converted to torch tensors
         return example
