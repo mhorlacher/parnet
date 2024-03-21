@@ -26,7 +26,13 @@ from parnet.losses import MultinomialNLLLossFromLogits
 # %%
 class LightningModel(pl.LightningModule):
     def __init__(
-        self, model, use_control=False, loss=None, optimizer=None, metrics=None
+        self, 
+        model, 
+        use_control=False, 
+        loss=None, 
+        optimizer=None, 
+        metrics=None,
+        crop_size=None,
     ):
         if loss is None:
             raise ValueError("loss must be specified.")
@@ -35,6 +41,8 @@ class LightningModel(pl.LightningModule):
 
         super().__init__()
         self.model = model
+
+        self.crop_size = crop_size
 
         # loss
         self.loss_fn = nn.ModuleDict(
@@ -94,6 +102,11 @@ class LightningModel(pl.LightningModule):
         inputs, y = batch
         # y = y['total']
         y_pred = self.forward(inputs)
+
+        targets = {'total', 'control'}.intersection(y_pred.keys())
+        if self.crop_size is not None:
+            y = {target: y[target][:, :, self.crop_size:-self.crop_size] for target in targets}
+            y_pred = {target: y_pred[target][:, :, self.crop_size:-self.crop_size] for target in targets}
 
         # log counts
         self.log(
@@ -211,6 +224,7 @@ def train(
     optimizer=torch.optim.Adam,
     batch_size=128,
     use_control=False,
+    crop_size=None,
     # shuffle=None,  # Shuffle is handled by TFDS. Any value >0 will enable 'shuffle_files' in TFDS and call 'ds.shuffle(x)' on the dataset.
     **kwargs,
 ):
@@ -224,7 +238,12 @@ def train(
 
     # wrap model in LightningModule
     lightning_model = LightningModel(
-        model, loss=loss, metrics=metrics, optimizer=optimizer, use_control=use_control
+        model, 
+        loss=loss, 
+        metrics=metrics, 
+        optimizer=optimizer, 
+        use_control=use_control,
+        crop_size=crop_size,
     )
 
     if just_print_model:
