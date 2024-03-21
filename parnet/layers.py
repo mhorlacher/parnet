@@ -163,7 +163,6 @@ class LinearProjection(nn.Module):
 # %%
 @gin.configurable()
 class SequenceLinearMix(nn.Module):
-    # TODO: Implement.
     def __init__(self, num_tasks):
         super().__init__()
 
@@ -181,18 +180,30 @@ class SequenceLinearMix(nn.Module):
 
         return x
 
+@gin.configurable()
+class IdentityPenality(nn.Module):
+    def __init__(self, factor=1.0) -> None:
+        super().__init__()
+        self.factor = factor
+    
+    def __call__(self, track_target, track_control, mix_coeff):
+        return F.sigmoid(mix_coeff) * self.factor
 
 # %%
 @gin.configurable()
 class AdditiveMix(nn.Module):
-    def __init__(
-        self, num_tasks, head_layer=LinearProjection, mix_coeff_layer=SequenceLinearMix
+    def __init__(self, 
+        num_tasks, 
+        head_layer=LinearProjection, 
+        mix_coeff_layer=SequenceLinearMix,
+        penalty_layer=None,
     ):
         super().__init__()
 
         self.head_target = head_layer(num_tasks)
         self.head_control = head_layer(num_tasks)
         self.mix_coeff = mix_coeff_layer(num_tasks)
+        self.penalty = penalty_layer
 
     def forward(self, inputs, **kwargs):
         # inputs should have shape [batch, hidden_dim, length]
@@ -223,9 +234,14 @@ class AdditiveMix(nn.Module):
             torch.stack([mix_coeff + track_target, track_control], dim=0), dim=0
         )
 
-        return {
+        return_dict = {
             "target": track_target,
             "control": track_control,
             "total": track_total,
-            # 'mix_coeff': mix_coeff, # TODO: Add this.
+            "mix_coeff": mix_coeff, # TODO: Add this.
         }
+
+        if self.penalty is not None:
+            return_dict["penalty_loss"] = self.penalty(track_target, track_control, mix_coeff)
+        
+        return return_dict
