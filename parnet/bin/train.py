@@ -76,8 +76,10 @@ class LightningModel(pl.LightningModule):
         # optimizer
         self.optimizer_cls = optimizer
 
-        # save hyperparameters
-        self.save_hyperparameters()
+        # FIXME: Disable for now, because there are some issues with Tensorboard and saving 
+        # the hyperparameters to the YAML file (i.e. "ValueError: dictionary update sequence 
+        # element #0 has length 1; 2 is required")
+        # self.save_hyperparameters() 
 
     def forward(self, *args, **kwargs):
         return self.model(*args, **kwargs)
@@ -193,6 +195,7 @@ def train(
     data_path,
     just_print_model,
     output_path,
+    n_devices=1,
     dataset=TFDSDataset,
     model=None,
     loggers=None,
@@ -225,13 +228,14 @@ def train(
         dataset(data_path, split="train"), batch_size=batch_size
     )
     val_loader = DataLoader(
-        dataset(data_path, split="validation"), batch_size=batch_size
+        dataset(data_path, split="validation", shuffle=False, keep_in_memory=False), batch_size=batch_size
     )
 
     trainer = pl.Trainer(
         default_root_dir=output_path,
         logger=_make_loggers(output_path, loggers),
         callbacks=_make_callbacks(output_path, validation=(val_loader is not None)),
+        devices=n_devices,
         **kwargs,
     )
 
@@ -258,8 +262,9 @@ def train(
 @click.option("--config", type=str, default=None)
 @click.option("--log-level", type=str, default="WARNING")
 @click.option("--just-print-model", is_flag=True, default=False)
+@click.option("--n-devices", type=int, default=1)
 @click.option("-o", "--output", default=None)
-def main(data_path, config, log_level, just_print_model, output):
+def main(data_path, config, log_level, just_print_model, n_devices, output):
     # set log level
     logging.basicConfig(level=log_level)
 
@@ -282,4 +287,4 @@ def main(data_path, config, log_level, just_print_model, output):
             shutil.copy(config, str(output_path / "config.gin"))
 
     # launch training (parameters are configured exclusively via gin)
-    train(data_path, just_print_model, output_path)
+    train(data_path, just_print_model, output_path, n_devices)
