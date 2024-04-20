@@ -1,0 +1,29 @@
+from parnet import models
+from parnet import metrics
+from parnet import losses
+from parnet.data import datasets
+from pytorch_lightning import loggers
+
+train.model = @models.LikeBasenji2()
+train.dataset = @datasets.HFDSDataset
+train.loggers = [@loggers.TensorBoardLogger]
+train.loss = @losses.MultinomialNLLLossFromLogits
+train.metrics = {'pcc': @metrics.PearsonCorrCoeff, 'filtered_pcc': @metrics.FilteredPearsonCorrCoeff}
+train.batch_size = 256
+train.max_epochs = 100
+
+models.LikeBasenji2.head_layer = @layers.AdditiveMix
+
+# ------------------------- #
+# --- Global Parameters --- #
+# ------------------------- #
+
+models.LikeBasenji2.num_tasks = 223
+datasets.HFDSDataset.sequence_as_ids = True
+
+# ------------------- #
+# --- WandbLogger --- # 
+# ------------------- #
+
+loggers.WandbLogger.project = 'RBPNet'
+loggers.WandbLogger.tags = ['LikeBasenji2']

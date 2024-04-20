@@ -86,36 +86,50 @@ class ResConvBlock1D(nn.Module):
 
         return x
 
+@gin.configurable()
+class LikeBasenji2ConvBlock(nn.Module):
+    def __init__(self, filters, kernel_size) -> None:
+        super().__init__()
+
+        self.conv1d = nn.LazyConv1d(filters, kernel_size, padding="same")
+        self.batch_norm = nn.BatchNorm1d(filters)
+        self.act = nn.GELU()
+
+    def forward(self, inputs):
+        x = self.conv1d(inputs)
+        x = self.batch_norm(x)
+        x = self.act(x)
+        return x
 
 @gin.configurable()
-class EnhancedResConvBlock1D(nn.Module):
+class LikeBasenji2DilatedResConvBlock(nn.Module):
     # TODO: Add documentation.
     def __init__(
         self,
         filters=256,
-        pointwise_filters_factor=1.5,
         kernel_size=5,
         dropout=0.3,
         activation=nn.GELU(),
-        dilation=1,
+        dilation=1.0,
         residual=True,
     ):
         super().__init__()
 
         self.conv1d = nn.LazyConv1d(
-            filters, kernel_size, dilation=int(dilation), padding="same"
+            int(filters/2), kernel_size, dilation=int(dilation), padding="same"
         )
-        self.conv1d_norm = nn.BatchNorm1d(filters)
+        self.conv1d_norm = nn.BatchNorm1d(int(filters/2))
+
         self.pointwise = nn.LazyConv1d(
-            int(filters * pointwise_filters_factor), kernel_size=1
+            filters, kernel_size=1
         )
-        self.pointwise_norm = nn.BatchNorm1d(int(filters * pointwise_filters_factor))
+        self.pointwise_norm = nn.BatchNorm1d(filters)
 
         self.act = activation
         self.dropout = nn.Dropout1d(dropout) if dropout > 0.0 else None
         self.residual = residual
 
-    def forward(self, inputs, **kwargs):
+    def forward(self, inputs):
         x = inputs
 
         # conv1d
@@ -128,7 +142,6 @@ class EnhancedResConvBlock1D(nn.Module):
         x = self.pointwise_norm(x)
         x = self.act(x)
 
-        # dropout
         if self.dropout is not None:
             x = self.dropout(x)
 
@@ -150,7 +163,7 @@ class LinearProjection(nn.Module):
     def __init__(self, out_features=128, activation=None, bias=False) -> None:
         super().__init__()
 
-        self.pointwise_conv = nn.LazyConv1d(out_features, kernel_size=1, bias=bias)
+        self.pointwise_conv = nn.LazyConv1d(out_features, kernel_size=1, bias=bias, padding="same")
         self.act = activation
 
     def forward(self, x):

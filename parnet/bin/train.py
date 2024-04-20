@@ -198,7 +198,7 @@ def _make_callbacks(output_path, validation=False):
             dirpath=output_path / "checkpoints",
             every_n_epochs=1,
             save_last=True,
-            save_top_k=1,
+            save_top_k=-1,
         ),
         pl.callbacks.LearningRateMonitor("step", log_momentum=True),
     ]
@@ -278,7 +278,10 @@ def train(
 
     # fit the model
     trainer.fit(
-        lightning_model, train_dataloaders=train_loader, val_dataloaders=val_loader
+        lightning_model, 
+        train_dataloaders=train_loader, 
+        val_dataloaders=val_loader,
+        ckpt_path='last' # resume from last checkpoint
     )
 
     # save the torch (not pytorch-lightning) model
@@ -305,11 +308,17 @@ def main(data_path, config, log_level, just_print_model, n_devices, output):
         gin.parse_config_file(config)
 
     # create output directory
-    output_path = Path(f'{output}/{datetime.datetime.now().strftime("%Y%m%d-%H%M%S")}')
+    output_path = Path(output)
     if not just_print_model:
         if output_path.exists():
             logging.warning(f"Output path {output_path} already exists. Overwriting.")
         output_path.mkdir(parents=True, exist_ok=True)
+
+    # output_path = Path(f'{output}/{datetime.datetime.now().strftime("%Y%m%d-%H%M%S")}')
+    # if not just_print_model:
+    #     if output_path.exists():
+    #         logging.warning(f"Output path {output_path} already exists. Overwriting.")
+    #     output_path.mkdir(parents=True, exist_ok=True)
 
         # copy gin config
         if config is not None:

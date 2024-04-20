@@ -10,7 +10,7 @@ import transformers
 
 # %%
 from parnet.utils import sequence_to_onehot
-from parnet.layers import StemConv1D, LinearProjection, ResConvBlock1D
+from parnet.layers import StemConv1D, LinearProjection, ResConvBlock1D, LikeBasenji2DilatedResConvBlock, LikeBasenji2ConvBlock
 
 # %%
 @gin.configurable()
@@ -142,24 +142,36 @@ class RBPNetESM(nn.Module):
 
 # %%
 @gin.configurable()
-class EnhancedRBPNet(nn.Module):
+class LikeBasenji2(nn.Module):
 
     def __init__(
         self,
         num_tasks=None,
-        layers=9,
+        C=768,
+        L=11,
         dilation=1.75,
+        head_layer=LinearProjection,
     ):
         super().__init__()
 
-        if num_tasks is None:
-            # We could infer this from the dataset, but let's keep it explicit for now.
-            raise ValueError("num_tasks must be specified in the gin config file.")
-
-        self.stem = StemConv1D()
-        self.body = nn.Sequential(
-            *[body_layer(dilation=int(dilation**i)) for i in range(layers)]
+        self.stem = nn.Sequential(
+            *[
+                nn.LazyConv1d(int(C*0.5), kernel_size=11, padding="same"),
+                nn.BatchNorm1d(int(C*0.5)),
+                nn.GELU(),
+            ]
         )
+
+        self.conv_tower = nn.Sequential(
+            *[LikeBasenji2ConvBlock(filters=C, kernel_size=5) for _ in range(4)]
+        )
+
+        self.dilated_tower = nn.Sequential(
+            *[LikeBasenji2DilatedResConvBlock(filters=C, kernel_size=3, dilation=int(dilation**i)) for i in range(L)]
+        )
+
+        self.projection = nn.LazyConv1d(int(C*1.25), kernel_size=1, padding="same", bias=False)
+        # self.projection = nn.LazyLinear(C*1.25, bias=False)
         self.head = head_layer(num_tasks)
 
         # Dummy forward pass to initialize weights. Not strictly required, but allows us
@@ -174,7 +186,9 @@ class EnhancedRBPNet(nn.Module):
         )
 
         x = self.stem(inputs["sequence"])
-        x = self.body(x)
+        x = self.conv_tower(x)
+        x = self.dilated_tower(x)
+        x = self.projection(x)
         x = self.head(x)
 
         if isinstance(x, torch.Tensor):
