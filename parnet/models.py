@@ -191,8 +191,8 @@ class LikeBasenji2(nn.Module):
         x = self.projection(x)
         x = self.head(x)
 
-        if isinstance(x, torch.Tensor):
-            x = {"total": x}
+        # if isinstance(x, torch.Tensor):
+        #     x = {"total": x}
 
         # # Convert logits to probabilities if requested.
         # if to_probs:
@@ -202,3 +202,15 @@ class LikeBasenji2(nn.Module):
         #         raise NotImplementedError()
 
         return x
+
+class NoHeadModel(torch.nn.Module):
+    def __init__(self, model):
+        super().__init__()
+        self.model = model
+        self.model.head = torch.nn.Identity()
+        
+    def forward(self, x):
+        return self.model(x)
+    
+    def forward_mean_pool(self, x):
+        return self.model(x).mean(dim=-1)
