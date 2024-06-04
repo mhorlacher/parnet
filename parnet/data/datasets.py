@@ -152,8 +152,8 @@ class HFDSDataset(torch.utils.data.Dataset):
             split
         ]
         if shuffle:
+            # DEBUG: This only shuffles the dataset once! Need to implement manual shuffling over indices or use shuffling in dataloader. 
             self._hfds = self._hfds.shuffle(seed=42, keep_in_memory=keep_in_memory)
-        # self._hfds.with_format("torch") DEBUG: This may have no effect, convertion is done in the _format_example method. 
 
         self.return_meta = return_meta
         self.sequence_as_ids = sequence_as_ids

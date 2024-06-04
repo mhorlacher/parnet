@@ -8,6 +8,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 import transformers
 
+from sequence_models.convolutional import ByteNet
+from sequence_models.layers import PositionFeedForward
+
 # %%
 from parnet.utils import sequence_to_onehot
 from parnet.layers import StemConv1D, LinearProjection, ResConvBlock1D, LikeBasenji2DilatedResConvBlock, LikeBasenji2ConvBlock
@@ -201,4 +204,122 @@ class LikeBasenji2(nn.Module):
         #     else:
         #         raise NotImplementedError()
 
+        return x
+
+# %%
+@gin.configurable()
+class ByteNetRNA(ByteNet):
+    def __init__(
+        self,
+        num_tasks=None,
+        head_layer=LinearProjection,
+        d_model=384,
+        n_layers=16,
+        kernel_size=5,
+        r=32,
+        activation='gelu',
+        dropout=0.25
+    ):
+        super().__init__(
+            d_model=d_model,
+            n_layers=n_layers,
+            kernel_size=kernel_size,
+            r=r,
+            activation=activation,
+            dropout=dropout,
+            n_tokens=99, # dummy, not used
+            d_embedding=99, # dummy, not used
+        )
+
+        # overwrite that crap to not pollute checkpoints
+        self.embedder = None
+        self.up_embedder = None
+
+        self.stem = nn.LazyConv1d(d_model, kernel_size=5, padding="same", bias=False)
+
+        self.last_layer_norm = nn.LayerNorm(d_model)
+        self.last_feed_forward = PositionFeedForward(d_model, d_model, rank=None)
+
+        self.head = head_layer(num_tasks)
+
+        # Dummy forward pass to initialize weights. Not strictly required, but allows us
+        # to print a proper summary of the model with pytorch_lightning and get the correct
+        # number of parameters.
+        _ = self({"sequence": torch.rand(2, 4, 123, dtype=torch.float32)})
+
+    def forward(self, inputs,**kwargs):
+        x = self.stem(inputs["sequence"])
+
+        # Transpose to (batch_size, seq_len, hidden_size), as ByteNet expects
+        x = x.transpose(-1, -2)
+
+        x = self._convolve(x)
+
+        # LayerNorm + pointwise FeedForward (see Paper)
+        x = self.last_layer_norm(x)
+        x = self.last_feed_forward(x)
+
+        # Transpose back to (batch_size, hidden_size, seq_len)
+        x = x.transpose(-1, -2)
+        x = self.head(x)
+        return x
+
+# %%
+@gin.configurable()
+class ByteNetVanilla(ByteNet):
+    def __init__(
+        self,
+        num_tasks=None,
+        head_layer=LinearProjection,
+        d_model=384,
+        n_layers=16,
+        kernel_size=5,
+        r=32,
+        activation='gelu',
+        dropout=0.25
+    ):
+        super().__init__(
+            d_model=d_model,
+            n_layers=n_layers,
+            kernel_size=kernel_size,
+            r=r,
+            activation=activation,
+            dropout=dropout,
+            n_tokens=5, 
+            d_embedding=8,
+            padding_idx=4,
+        )
+
+        self.last_layer_norm = nn.LayerNorm(d_model)
+        self.last_feed_forward = PositionFeedForward(d_model, d_model, rank=None)
+
+        self.head = head_layer(num_tasks)
+
+        # Dummy forward pass to initialize weights. Not strictly required, but allows us
+        # to print a proper summary of the model with pytorch_lightning and get the correct
+        # number of parameters.
+        _ = self({"sequence": torch.zeros(2, 4, 123).long()})
+
+    def _onehot_to_ids(self, x):
+        """
+        Convert one-hot encoded sequences to integer ids (id=4 is padding/unknown, i.e. N).
+        """
+
+        assert len(x.shape) == 3, f'{x.shape}' # (batch_size, n_tokens, seq_len)
+        ids = torch.argmax(x, dim=1)
+        ids[(x.sum(1) == 0).detach()] = 4
+        return ids
+
+    def forward(self, inputs,**kwargs):
+        x = self._onehot_to_ids(inputs["sequence"])
+        x = self._embed(x)
+        x = self._convolve(x)
+
+        # LayerNorm + pointwise FeedForward (see Paper)
+        x = self.last_layer_norm(x)
+        x = self.last_feed_forward(x)
+
+        # Transpose back to (batch_size, hidden_size, seq_len)
+        x = x.transpose(-1, -2)
+        x = self.head(x)
         return x
