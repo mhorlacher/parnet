@@ -52,6 +52,9 @@ def to_sparse_tensor_dict(x: torch.Tensor):
     x = x.to_sparse()
     return {'indices': x.indices(), 'values': x.values(), 'size': x.size()}
 
+def sparse_to_dense(indices, values, size):
+    return torch.sparse_coo_tensor(indices, values, size).to_dense().to(torch.float32)
+
 def sample_to_torch_sparse_tensor_dict(example):
     return {
         'meta': {'name': example['meta']['name'].numpy()},

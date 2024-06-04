@@ -75,7 +75,7 @@ def mask_noncanonical_bases(sequence):
 
 # %%
 class Fasta:
-    def __init__(self, filepath, mask_noncanonical_bases=True) -> None:
+    def __init__(self, filepath, mask_noncanonical_bases=True, one_hot=True) -> None:
         """
         Initialize a Fasta object.
 
@@ -90,6 +90,7 @@ class Fasta:
                 "Please install pysam. See https://github.com/pysam-developers/pysam"
             )
 
+        self.one_hot = one_hot
         self.mask_noncanonical_bases = mask_noncanonical_bases
         self._fasta = pysam.FastaFile(filepath)
 
@@ -122,7 +123,10 @@ class Fasta:
             raise ValueError(f"Unknown strand: {strand}")
 
         # Convert to one-hot encoded numpy array. We assume that the alphabet is fairly small (usually 4 or 5 bases).
-        return np.array(sequence2onehot(sequence), dtype=np.int8)
+        if self.one_hot:
+            return np.array(sequence2onehot(sequence), dtype=np.int8)
+        else:
+            return np.array(sequence2int(sequence), dtype=np.int8)
 
     def __call__(self, *args, **kwargs):
         return self.fetch(*args, **kwargs)
