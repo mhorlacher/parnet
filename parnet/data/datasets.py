@@ -148,10 +148,12 @@ class HFDSDataset(torch.utils.data.Dataset):
     def __init__(self, hfds_path, split, shuffle=True, keep_in_memory=False, sequence_as_ids=False, return_meta=False):
         super(HFDSDataset).__init__()
 
+        self.shuffle = shuffle
+
         self._hfds = datasets.load_from_disk(hfds_path, keep_in_memory=keep_in_memory)[
             split
         ]
-        if shuffle:
+        if self.shuffle:
             # DEBUG: This only shuffles the dataset once! Need to implement manual shuffling over indices or use shuffling in dataloader. 
             self._hfds = self._hfds.shuffle(seed=42, keep_in_memory=keep_in_memory)
 
@@ -203,6 +205,10 @@ class HFDSDataset(torch.utils.data.Dataset):
         return len(self._hfds)
 
     def __getitem__(self, idx):
+        if self.shuffle:
+            # NOTE: Untested
+            idx = torch.randint(0, len(self._hfds), ())
+
         example = self._hfds[idx]
         example = self.process_example(self._format_example(example))
 
