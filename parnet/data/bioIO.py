@@ -1,9 +1,9 @@
-"""Holds classes and functions for reading biological data (FASTA, BED, BigWig, etc.). 
+"""Holds classes and functions for reading biological data (FASTA, BED, BigWig, etc.).
 
-    In general, the classes and functions in this module are only used for constructing the TFDS dataset.
-    Users which want to train a model on an existing dataset, or use a pre-trained model, do not need to 
-    use this module. Consequently, this module is not imported in the __init__.py file and libraries such 
-    as pyBigWig are not required for the installation of parnet. 
+In general, the classes and functions in this module are only used for constructing the TFDS dataset.
+Users which want to train a model on an existing dataset, or use a pre-trained model, do not need to
+use this module. Consequently, this module is not imported in the __init__.py file and libraries such
+as pyBigWig are not required for the installation of parnet.
 """
 
 import math
@@ -135,7 +135,6 @@ class Fasta:
 # %%
 class Bed:
     def __init__(self, filepath) -> None:
-
         self.bed_df = pd.read_csv(filepath, sep="\t", header=None)
         self.bed_df.columns = ["chrom", "start", "end", "name", "score", "strand"] + [
             str(i) for i in range(6, len(self.bed_df.columns))
