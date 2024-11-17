@@ -13,7 +13,14 @@ from sequence_models.layers import PositionFeedForward
 
 # %%
 from parnet.utils import sequence_to_onehot
-from parnet.layers import StemConv1D, LinearProjection, ResConvBlock1D, LikeBasenji2DilatedResConvBlock, LikeBasenji2ConvBlock
+from parnet.layers import (
+    StemConv1D,
+    LinearProjection,
+    ResConvBlock1D,
+    LikeBasenji2DilatedResConvBlock,
+    LikeBasenji2ConvBlock,
+)
+
 
 # %%
 @gin.configurable()
@@ -40,31 +47,29 @@ class RBPNet(nn.Module):
 
         if num_tasks is None:
             # We could infer this from the dataset, but let's keep it explicit for now.
-            raise ValueError("num_tasks must be specified in the gin config file.")
+            raise ValueError('num_tasks must be specified in the gin config file.')
 
         self.stem = StemConv1D()
-        self.body = nn.Sequential(
-            *[body_layer(dilation=int(dilation**i)) for i in range(layers)]
-        )
+        self.body = nn.Sequential(*[body_layer(dilation=int(dilation**i)) for i in range(layers)])
         self.head = head_layer(num_tasks)
 
         # Dummy forward pass to initialize weights. Not strictly required, but allows us
         # to print a proper summary of the model with pytorch_lightning and get the correct
         # number of parameters.
-        _ = self({"sequence": torch.zeros(2, 4, 100, dtype=torch.float32)})
+        _ = self({'sequence': torch.zeros(2, 4, 100, dtype=torch.float32)})
 
     def forward(self, inputs, to_probs=False, **kwargs):
-        logging.debug(f"Received inputs of type: {type(inputs)}.")
+        logging.debug(f'Received inputs of type: {type(inputs)}.')
         logging.debug(
             f"Predict on sequence inputs with shape {inputs['sequence'].shape} and dtype {inputs['sequence'].dtype}."
         )
 
-        x = self.stem(inputs["sequence"])
+        x = self.stem(inputs['sequence'])
         x = self.body(x)
         x = self.head(x)
 
         if isinstance(x, torch.Tensor):
-            x = {"total": x}
+            x = {'total': x}
 
         # # Convert logits to probabilities if requested.
         # if to_probs:
@@ -75,7 +80,7 @@ class RBPNet(nn.Module):
 
         return x
 
-    def predict_from_sequence(self, sequence, alphabet="ACGT", **kwargs):
+    def predict_from_sequence(self, sequence, alphabet='ACGT', **kwargs):
         """Predicts RBP binding probabilities from a sequence.
 
         Args:
@@ -91,7 +96,8 @@ class RBPNet(nn.Module):
         sequence_onehot = torch.unsqueeze(sequence_onehot, dim=0).float()
 
         # Predict and remove batch dimension of size 1.
-        return self.forward({"sequence": sequence_onehot}, **kwargs)
+        return self.forward({'sequence': sequence_onehot}, **kwargs)
+
 
 @gin.configurable()
 class RBPNetESM(nn.Module):
@@ -101,7 +107,7 @@ class RBPNetESM(nn.Module):
         self,
         num_tasks=None,
         head_layer=LinearProjection,
-        esm_model_path="facebook/esm2_t12_35M_UR50D",
+        esm_model_path='facebook/esm2_t12_35M_UR50D',
     ):
         """Initializes RBPNet.
 
@@ -115,7 +121,7 @@ class RBPNetESM(nn.Module):
 
         if num_tasks is None:
             # We could infer this from the dataset, but let's keep it explicit for now.
-            raise ValueError("num_tasks must be specified in the gin config file.")
+            raise ValueError('num_tasks must be specified in the gin config file.')
 
         esm_config = transformers.EsmConfig.from_pretrained(esm_model_path)
         esm_config.vocab_size = 6
@@ -129,24 +135,26 @@ class RBPNetESM(nn.Module):
         # Dummy forward pass to initialize weights. Not strictly required, but allows us
         # to print a proper summary of the model with pytorch_lightning and get the correct
         # number of parameters.
-        _ = self({"input_ids": torch.randint(0, 6, (1, 100)).long(), "attention_mask": torch.ones(1, 100).float()})
+        _ = self(
+            {'input_ids': torch.randint(0, 6, (1, 100)).long(), 'attention_mask': torch.ones(1, 100).float()}
+        )
 
     def forward(self, inputs):
         x = self.esm(
-            input_ids=inputs["input_ids"], 
-            attention_mask=inputs["attention_mask"]).last_hidden_state # (batch_size, seq_len, hidden_size)
-        x = x.transpose(-1, -2) # (batch_size, hidden_size, seq_len)
+            input_ids=inputs['input_ids'], attention_mask=inputs['attention_mask']
+        ).last_hidden_state  # (batch_size, seq_len, hidden_size)
+        x = x.transpose(-1, -2)  # (batch_size, hidden_size, seq_len)
         x = self.head(x)
 
         if isinstance(x, torch.Tensor):
-            x = {"total": x}
+            x = {'total': x}
 
         return x
+
 
 # %%
 @gin.configurable()
 class LikeBasenji2(nn.Module):
-
     def __init__(
         self,
         num_tasks=None,
@@ -159,36 +167,37 @@ class LikeBasenji2(nn.Module):
 
         self.stem = nn.Sequential(
             *[
-                nn.LazyConv1d(int(C*0.5), kernel_size=11, padding="same"),
-                nn.BatchNorm1d(int(C*0.5)),
+                nn.LazyConv1d(int(C * 0.5), kernel_size=11, padding='same'),
+                nn.BatchNorm1d(int(C * 0.5)),
                 nn.GELU(),
             ]
         )
 
-        self.conv_tower = nn.Sequential(
-            *[LikeBasenji2ConvBlock(filters=C, kernel_size=5) for _ in range(4)]
-        )
+        self.conv_tower = nn.Sequential(*[LikeBasenji2ConvBlock(filters=C, kernel_size=5) for _ in range(4)])
 
         self.dilated_tower = nn.Sequential(
-            *[LikeBasenji2DilatedResConvBlock(filters=C, kernel_size=3, dilation=int(dilation**i)) for i in range(L)]
+            *[
+                LikeBasenji2DilatedResConvBlock(filters=C, kernel_size=3, dilation=int(dilation**i))
+                for i in range(L)
+            ]
         )
 
-        self.projection = nn.LazyConv1d(int(C*1.25), kernel_size=1, padding="same", bias=False)
+        self.projection = nn.LazyConv1d(int(C * 1.25), kernel_size=1, padding='same', bias=False)
         # self.projection = nn.LazyLinear(C*1.25, bias=False)
         self.head = head_layer(num_tasks)
 
         # Dummy forward pass to initialize weights. Not strictly required, but allows us
         # to print a proper summary of the model with pytorch_lightning and get the correct
         # number of parameters.
-        _ = self({"sequence": torch.zeros(2, 4, 100, dtype=torch.float32)})
+        _ = self({'sequence': torch.zeros(2, 4, 100, dtype=torch.float32)})
 
     def forward(self, inputs, to_probs=False, **kwargs):
-        logging.debug(f"Received inputs of type: {type(inputs)}.")
+        logging.debug(f'Received inputs of type: {type(inputs)}.')
         logging.debug(
             f"Predict on sequence inputs with shape {inputs['sequence'].shape} and dtype {inputs['sequence'].dtype}."
         )
 
-        x = self.stem(inputs["sequence"])
+        x = self.stem(inputs['sequence'])
         x = self.conv_tower(x)
         x = self.dilated_tower(x)
         x = self.projection(x)
@@ -206,6 +215,7 @@ class LikeBasenji2(nn.Module):
 
         return x
 
+
 # %%
 @gin.configurable()
 class ByteNetRNA(ByteNet):
@@ -218,7 +228,7 @@ class ByteNetRNA(ByteNet):
         kernel_size=5,
         r=32,
         activation='gelu',
-        dropout=0.25
+        dropout=0.25,
     ):
         super().__init__(
             d_model=d_model,
@@ -227,15 +237,15 @@ class ByteNetRNA(ByteNet):
             r=r,
             activation=activation,
             dropout=dropout,
-            n_tokens=99, # dummy, not used
-            d_embedding=99, # dummy, not used
+            n_tokens=99,  # dummy, not used
+            d_embedding=99,  # dummy, not used
         )
 
         # overwrite that crap to not pollute checkpoints
         self.embedder = None
         self.up_embedder = None
 
-        self.stem = nn.LazyConv1d(d_model, kernel_size=5, padding="same", bias=False)
+        self.stem = nn.LazyConv1d(d_model, kernel_size=5, padding='same', bias=False)
 
         self.last_layer_norm = nn.LayerNorm(d_model)
         self.last_feed_forward = PositionFeedForward(d_model, d_model, rank=None)
@@ -245,10 +255,10 @@ class ByteNetRNA(ByteNet):
         # Dummy forward pass to initialize weights. Not strictly required, but allows us
         # to print a proper summary of the model with pytorch_lightning and get the correct
         # number of parameters.
-        _ = self({"sequence": torch.rand(2, 4, 123, dtype=torch.float32)})
+        _ = self({'sequence': torch.rand(2, 4, 123, dtype=torch.float32)})
 
-    def forward(self, inputs,**kwargs):
-        x = self.stem(inputs["sequence"])
+    def forward(self, inputs, **kwargs):
+        x = self.stem(inputs['sequence'])
 
         # Transpose to (batch_size, seq_len, hidden_size), as ByteNet expects
         x = x.transpose(-1, -2)
@@ -264,6 +274,7 @@ class ByteNetRNA(ByteNet):
         x = self.head(x)
         return x
 
+
 # %%
 @gin.configurable()
 class ByteNetVanilla(ByteNet):
@@ -276,7 +287,7 @@ class ByteNetVanilla(ByteNet):
         kernel_size=5,
         r=32,
         activation='gelu',
-        dropout=0.25
+        dropout=0.25,
     ):
         super().__init__(
             d_model=d_model,
@@ -285,7 +296,7 @@ class ByteNetVanilla(ByteNet):
             r=r,
             activation=activation,
             dropout=dropout,
-            n_tokens=5, 
+            n_tokens=5,
             d_embedding=8,
             padding_idx=4,
         )
@@ -298,20 +309,20 @@ class ByteNetVanilla(ByteNet):
         # Dummy forward pass to initialize weights. Not strictly required, but allows us
         # to print a proper summary of the model with pytorch_lightning and get the correct
         # number of parameters.
-        _ = self({"sequence": torch.zeros(2, 4, 123).long()})
+        _ = self({'sequence': torch.zeros(2, 4, 123).long()})
 
     def _onehot_to_ids(self, x):
         """
         Convert one-hot encoded sequences to integer ids (id=4 is padding/unknown, i.e. N).
         """
 
-        assert len(x.shape) == 3, f'{x.shape}' # (batch_size, n_tokens, seq_len)
+        assert len(x.shape) == 3, f'{x.shape}'  # (batch_size, n_tokens, seq_len)
         ids = torch.argmax(x, dim=1)
         ids[(x.sum(1) == 0).detach()] = 4
         return ids
 
-    def forward(self, inputs,**kwargs):
-        x = self._onehot_to_ids(inputs["sequence"])
+    def forward(self, inputs, **kwargs):
+        x = self._onehot_to_ids(inputs['sequence'])
         x = self._embed(x)
         x = self._convolve(x)
 
@@ -324,14 +335,15 @@ class ByteNetVanilla(ByteNet):
         x = self.head(x)
         return x
 
+
 class NoHeadModel(torch.nn.Module):
     def __init__(self, model):
         super().__init__()
         self.model = model
         self.model.head = torch.nn.Identity()
-        
+
     def forward(self, x):
         return self.model(x)
-    
+
     def forward_mean_pool(self, x):
         return self.model(x).mean(dim=-1)
