@@ -28,7 +28,7 @@ class StemConv1D(nn.Module):
         """
         super().__init__()
 
-        self.conv1d = nn.LazyConv1d(filters, kernel_size, padding="same")
+        self.conv1d = nn.LazyConv1d(filters, kernel_size, padding='same')
         self.batch_norm = nn.BatchNorm1d(filters)
         self.act = activation
         self.dropout = nn.Dropout1d(dropout) if dropout is not None else None
@@ -57,9 +57,7 @@ class ResConvBlock1D(nn.Module):
     ):
         super().__init__()
 
-        self.conv1d = nn.LazyConv1d(
-            filters, kernel_size=kernel_size, dilation=int(dilation), padding="same"
-        )
+        self.conv1d = nn.LazyConv1d(filters, kernel_size=kernel_size, dilation=int(dilation), padding='same')
         self.batch_norm = nn.BatchNorm1d(filters)
         self.act = activation
         self.dropout = nn.Dropout1d(dropout) if dropout is not None else None
@@ -86,12 +84,13 @@ class ResConvBlock1D(nn.Module):
 
         return x
 
+
 @gin.configurable()
 class LikeBasenji2ConvBlock(nn.Module):
     def __init__(self, filters, kernel_size) -> None:
         super().__init__()
 
-        self.conv1d = nn.LazyConv1d(filters, kernel_size, padding="same")
+        self.conv1d = nn.LazyConv1d(filters, kernel_size, padding='same')
         self.batch_norm = nn.BatchNorm1d(filters)
         self.act = nn.GELU()
 
@@ -100,6 +99,7 @@ class LikeBasenji2ConvBlock(nn.Module):
         x = self.batch_norm(x)
         x = self.act(x)
         return x
+
 
 @gin.configurable()
 class LikeBasenji2DilatedResConvBlock(nn.Module):
@@ -115,14 +115,10 @@ class LikeBasenji2DilatedResConvBlock(nn.Module):
     ):
         super().__init__()
 
-        self.conv1d = nn.LazyConv1d(
-            int(filters/2), kernel_size, dilation=int(dilation), padding="same"
-        )
-        self.conv1d_norm = nn.BatchNorm1d(int(filters/2))
+        self.conv1d = nn.LazyConv1d(int(filters / 2), kernel_size, dilation=int(dilation), padding='same')
+        self.conv1d_norm = nn.BatchNorm1d(int(filters / 2))
 
-        self.pointwise = nn.LazyConv1d(
-            filters, kernel_size=1
-        )
+        self.pointwise = nn.LazyConv1d(filters, kernel_size=1)
         self.pointwise_norm = nn.BatchNorm1d(filters)
 
         self.act = activation
@@ -163,7 +159,7 @@ class LinearProjection(nn.Module):
     def __init__(self, out_features=128, activation=None, bias=False) -> None:
         super().__init__()
 
-        self.pointwise_conv = nn.LazyConv1d(out_features, kernel_size=1, bias=bias, padding="same")
+        self.pointwise_conv = nn.LazyConv1d(out_features, kernel_size=1, bias=bias, padding='same')
         self.act = activation
 
     def forward(self, x):
@@ -186,28 +182,31 @@ class SequenceLinearMix(nn.Module):
         # inputs should have shape [batch, hidden_dim, length]
 
         x = torch.squeeze(self.gloabel_avg_pool(inputs))  # --> [batch, hidden_dim]
-        logging.debug(f"x=torch.squeeze(self.gloabel_avg_pool(inputs)): {x.shape}")
+        logging.debug(f'x=torch.squeeze(self.gloabel_avg_pool(inputs)): {x.shape}')
 
         x = self.dense(x)  # --> [batch, num_tasks]
-        logging.debug(f"self.dense(x): {x.shape}")
+        logging.debug(f'self.dense(x): {x.shape}')
 
         return x
+
 
 @gin.configurable()
 class IdentityPenality(nn.Module):
     def __init__(self, factor=1.0) -> None:
         super().__init__()
         self.factor = factor
-    
+
     def __call__(self, track_target, track_control, mix_coeff):
         return F.sigmoid(mix_coeff) * self.factor
+
 
 # %%
 @gin.configurable()
 class AdditiveMix(nn.Module):
-    def __init__(self, 
-        num_tasks, 
-        head_layer=LinearProjection, 
+    def __init__(
+        self,
+        num_tasks,
+        head_layer=LinearProjection,
         mix_coeff_layer=SequenceLinearMix,
         penalty_layer=None,
     ):
@@ -225,36 +224,28 @@ class AdditiveMix(nn.Module):
         track_target = self.head_target(inputs)
         track_control = self.head_control(inputs)
 
-        logging.debug(
-            f"track_target.shape: {track_target.shape}, track_control.shape: {track_control.shape}"
-        )
+        logging.debug(f'track_target.shape: {track_target.shape}, track_control.shape: {track_control.shape}')
 
         # compute mixing coefficients --> [batch, num_tasks]
         mix_coeff = self.mix_coeff(inputs)
         mix_coeff = torch.unsqueeze(mix_coeff, dim=-1)
 
-        logging.debug(f"mix_coeff.shape: {mix_coeff.shape}")
+        logging.debug(f'mix_coeff.shape: {mix_coeff.shape}')
 
         # additive mixing of target and control tracks with control track weigthed
         # by the mixing coefficient --> [batch, num_tasks, length]
-        track_target = track_target - torch.logsumexp(
-            track_target, dim=-1, keepdim=True
-        )
-        track_control = track_control - torch.logsumexp(
-            track_control, dim=-1, keepdim=True
-        )
-        track_total = torch.logsumexp(
-            torch.stack([mix_coeff + track_target, track_control], dim=0), dim=0
-        )
+        track_target = track_target - torch.logsumexp(track_target, dim=-1, keepdim=True)
+        track_control = track_control - torch.logsumexp(track_control, dim=-1, keepdim=True)
+        track_total = torch.logsumexp(torch.stack([mix_coeff + track_target, track_control], dim=0), dim=0)
 
         return_dict = {
-            "target": track_target,
-            "control": track_control,
-            "total": track_total,
-            "mix_coeff": mix_coeff, # TODO: Add this.
+            'target': track_target,
+            'control': track_control,
+            'total': track_total,
+            'mix_coeff': mix_coeff,  # TODO: Add this.
         }
 
         if self.penalty is not None:
-            return_dict["penalty_loss"] = self.penalty(track_target, track_control, mix_coeff)
-        
+            return_dict['penalty_loss'] = self.penalty(track_target, track_control, mix_coeff)
+
         return return_dict
