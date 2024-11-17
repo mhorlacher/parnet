@@ -1,9 +1,9 @@
-"""Holds classes and functions for reading biological data (FASTA, BED, BigWig, etc.). 
+"""Holds classes and functions for reading biological data (FASTA, BED, BigWig, etc.).
 
-    In general, the classes and functions in this module are only used for constructing the TFDS dataset.
-    Users which want to train a model on an existing dataset, or use a pre-trained model, do not need to 
-    use this module. Consequently, this module is not imported in the __init__.py file and libraries such 
-    as pyBigWig are not required for the installation of parnet. 
+In general, the classes and functions in this module are only used for constructing the TFDS dataset.
+Users which want to train a model on an existing dataset, or use a pre-trained model, do not need to
+use this module. Consequently, this module is not imported in the __init__.py file and libraries such
+as pyBigWig are not required for the installation of parnet.
 """
 
 import math
@@ -75,7 +75,7 @@ def mask_noncanonical_bases(sequence):
 
 # %%
 class Fasta:
-    def __init__(self, filepath, mask_noncanonical_bases=True) -> None:
+    def __init__(self, filepath, mask_noncanonical_bases=True, one_hot=True) -> None:
         """
         Initialize a Fasta object.
 
@@ -90,6 +90,7 @@ class Fasta:
                 "Please install pysam. See https://github.com/pysam-developers/pysam"
             )
 
+        self.one_hot = one_hot
         self.mask_noncanonical_bases = mask_noncanonical_bases
         self._fasta = pysam.FastaFile(filepath)
 
@@ -122,7 +123,10 @@ class Fasta:
             raise ValueError(f"Unknown strand: {strand}")
 
         # Convert to one-hot encoded numpy array. We assume that the alphabet is fairly small (usually 4 or 5 bases).
-        return np.array(sequence2onehot(sequence), dtype=np.int8)
+        if self.one_hot:
+            return np.array(sequence2onehot(sequence), dtype=np.int8)
+        else:
+            return np.array(sequence2int(sequence), dtype=np.int8)
 
     def __call__(self, *args, **kwargs):
         return self.fetch(*args, **kwargs)
@@ -131,7 +135,6 @@ class Fasta:
 # %%
 class Bed:
     def __init__(self, filepath) -> None:
-
         self.bed_df = pd.read_csv(filepath, sep="\t", header=None)
         self.bed_df.columns = ["chrom", "start", "end", "name", "score", "strand"] + [
             str(i) for i in range(6, len(self.bed_df.columns))
@@ -243,8 +246,12 @@ class DataSpec:
     extracted 1D bigWig stracks are stacked to two tensors for eCLIP and control, both of the shape (n_tasks, n_positions).
     """
 
-    def __init__(self, dataspec_yml, control=False):
+    def __init__(self, dataspec_yml=None, control=False):
         self.control = control
+
+        if dataspec_yml is None:
+            # don't initialize with config (useful for just getting features, tf_signature, etc.)
+            return
 
         # parse YAML dataspec
         with open(dataspec_yml) as f:

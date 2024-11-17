@@ -1,5 +1,6 @@
 import os
 
+import tensorflow as tf
 import torch
 import torch.nn.functional as F
 
@@ -22,7 +23,8 @@ def _set_tf_dynamic_memory_growth():
     # Make sure that tensorflow doesn't gobble up all GPU memory
     physical_devices = tf.config.list_physical_devices('GPU')
     try:
-        tf.config.experimental.set_memory_growth(physical_devices[0], True)
+        for device in physical_devices:
+            tf.config.experimental.set_memory_growth(device, True)
     except:
         # Invalid device or cannot modify virtual devices once initialized.
         pass
@@ -45,3 +47,17 @@ def sequence_to_onehot(sequence, alphabet='ACGT'):
     sequence_onehot = F.one_hot(torch.tensor([alphabet.get(b, len(alphabet)) for b in sequence]), num_classes=len(alphabet)+1)[:, 0:len(alphabet)].T
 
     return sequence_onehot
+
+def to_sparse_tensor_dict(x: torch.Tensor):
+    x = x.to_sparse()
+    return {'indices': x.indices(), 'values': x.values(), 'size': x.size()}
+
+def sparse_to_dense(indices, values, size):
+    return torch.sparse_coo_tensor(indices, values, size).to_dense().to(torch.float32)
+
+def sample_to_torch_sparse_tensor_dict(example):
+    return {
+        'meta': {'name': example['meta']['name'].numpy()},
+        'inputs': tf.nest.map_structure(lambda x: to_sparse_tensor_dict(torch.tensor(x.numpy())), example['inputs']),
+        'outputs': tf.nest.map_structure(lambda x: to_sparse_tensor_dict(torch.tensor(x.numpy())), example['outputs']),
+    }

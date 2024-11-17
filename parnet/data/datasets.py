@@ -1,12 +1,15 @@
 # %%
 import sys
 
+import gin
 import torch
 import numpy as np
 import tensorflow as tf  # TODO: Remove this dependency. See https://www.tensorflow.org/datasets/tfless_tfds#use_with_pytorch.
 import tensorflow_datasets as tfds
+import datasets
 
 
+@gin.configurable(denylist=["data_dir", "split"])
 class TFDSDataset(torch.utils.data.IterableDataset):
     def __init__(self, data_dir, split, data_name="parnet_dataset", shuffle=None):
         """Dataset wrapper for tfds datasets.
@@ -85,6 +88,7 @@ class TFDSDataset(torch.utils.data.IterableDataset):
 
 
 # %%
+@gin.configurable(denylist=["data_dir", "split"])
 class MaskedTFDSDataset(TFDSDataset):
     def __init__(self, *args, mask_filepaths=[], **kwargs):
         super().__init__(*args, **kwargs)
@@ -137,6 +141,80 @@ class MaskedTFDSDataset(TFDSDataset):
         """
         example["outputs"] = self._mask(example["outputs"], self.composite_mask)
         return example
+
+
+@gin.configurable(denylist=["hfds_path", "split"])
+class HFDSDataset(torch.utils.data.Dataset):
+    def __init__(self, hfds_path, split, shuffle=True, keep_in_memory=False, sequence_as_ids=False, return_meta=False):
+        super(HFDSDataset).__init__()
+
+        self.shuffle = shuffle
+
+        self._hfds = datasets.load_from_disk(hfds_path, keep_in_memory=keep_in_memory)[
+            split
+        ]
+        if self.shuffle:
+            # DEBUG: This only shuffles the dataset once! Need to implement manual shuffling over indices or use shuffling in dataloader. 
+            self._hfds = self._hfds.shuffle(seed=42, keep_in_memory=keep_in_memory)
+
+        self.return_meta = return_meta
+        self.sequence_as_ids = sequence_as_ids
+
+    def _format_example(self, example):
+        example = {
+            "inputs": {
+                "sequence": torch.sparse_coo_tensor(**example["inputs"]["sequence"])
+                .to_dense()
+                .to(torch.float32)
+                .T
+            },
+            "outputs": {
+                # Outputs stay the same but will be renamed for compatibility.
+                # (TODO: Modify upstream code to accept names from dataset as-is)
+                "total": torch.sparse_coo_tensor(**example["outputs"]["eCLIP"])
+                .to_dense()
+                .to(torch.float32),
+                "control": torch.sparse_coo_tensor(**example["outputs"]["control"])
+                .to_dense()
+                .to(torch.float32),
+            },
+            "meta": {
+                "name": example["meta"]["name"],
+            }
+        }
+
+        if not self.return_meta:
+            del example["meta"]
+
+        # let's turn the one-hot encoded sequence back into a sequence of ids..
+        # FIXME: This is a bit of a hack, we should probably write the HFDS to disk with the sequence as ids
+        # or better, just as a string of nucleotides. 
+        if self.sequence_as_ids:
+            x = (1 - torch.sum(example["inputs"]["sequence"], dim=0)) * 4 # we set 4 as the padding ID
+            x += torch.argmax(example["inputs"]["sequence"], dim=0) # ..and add the one-hot encoded nucleotide ids
+            example["inputs"]["input_ids"] = x.long()
+            example["inputs"]["attention_mask"] = (x != 4).float() # 4 is the padding ID
+
+        # return as tf.Tensor, need to be converted to torch tensors
+        return example
+
+    def process_example(self, example):
+        return example
+
+    def __len__(self):
+        return len(self._hfds)
+
+    def __getitem__(self, idx):
+        if self.shuffle:
+            # NOTE: Untested
+            idx = torch.randint(0, len(self._hfds), ())
+
+        example = self._hfds[idx]
+        example = self.process_example(self._format_example(example))
+
+        if self.return_meta:
+            return example["meta"], example["inputs"], example["outputs"]
+        return example["inputs"], example["outputs"]
 
 
 # %%
