@@ -149,9 +149,10 @@ class HFDSDataset(torch.utils.data.Dataset):
         self.shuffle = shuffle
 
         self._hfds = datasets.load_from_disk(hfds_path, keep_in_memory=keep_in_memory)[split]
-        if self.shuffle:
-            # DEBUG: This only shuffles the dataset once! Need to implement manual shuffling over indices or use shuffling in dataloader.
-            self._hfds = self._hfds.shuffle(seed=42, keep_in_memory=keep_in_memory)
+        # if self.shuffle:
+        #     # DEBUG: This only shuffles the dataset once! Need to implement manual shuffling over indices or use shuffling in dataloader.
+        #     # DEBUG: Shuffling leads to "TypeError: len() of a 0-d tensor". Need to investigate.
+        #     self._hfds = self._hfds.shuffle(seed=42, keep_in_memory=keep_in_memory)
 
         self.return_meta = return_meta
         self.sequence_as_ids = sequence_as_ids
@@ -201,9 +202,9 @@ class HFDSDataset(torch.utils.data.Dataset):
         return len(self._hfds)
 
     def __getitem__(self, idx):
-        if self.shuffle:
-            # NOTE: Untested
-            idx = torch.randint(0, len(self._hfds), ())
+        # if self.shuffle:
+        #     # NOTE: This should be taken care of by the BatchSampler in the DataLoader.
+        #     idx = torch.randint(0, len(self._hfds), ())
 
         example = self._hfds[idx]
         example = self.process_example(self._format_example(example))
