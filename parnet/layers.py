@@ -190,8 +190,32 @@ class SequenceLinearMix(nn.Module):
         return x
 
 
+class MixCoeffMLP(nn.Module):
+    def __init__(self, units=128, act=nn.ReLU()) -> None:
+        super().__init__()
+
+        self.gloabel_avg_pool = nn.AdaptiveAvgPool1d(1)
+        self.dense1 = nn.LazyLinear(units)
+        self.act = act
+        self.dense2 = nn.LazyLinear(1)
+
+    def forward(self, inputs):
+        # inputs should have shape [batch, hidden_dim, length]
+
+        x = torch.squeeze(self.gloabel_avg_pool(inputs))  # --> [batch, hidden_dim]
+        logging.debug(f'x=torch.squeeze(self.gloabel_avg_pool(inputs)): {x.shape}')
+
+        x = self.dense1(x)  # --> [batch, units]
+        x = self.act(x)
+        logging.debug(f'self.dense(x): {x.shape}')
+
+        x = self.dense2(x)  # --> [batch, num_tasks]
+
+        return x
+
+
 @gin.configurable()
-class IdentityPenality(nn.Module):
+class MixCoeffPenalty(nn.Module):
     def __init__(self, factor=1.0) -> None:
         super().__init__()
         self.factor = factor
