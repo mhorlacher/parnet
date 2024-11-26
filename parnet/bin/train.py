@@ -87,6 +87,7 @@ class LightningModel(pl.LightningModule):
                 'val/loss_eCLIP': torchmetrics.MeanMetric(),
                 'val/loss_SMI': torchmetrics.MeanMetric(),
                 'val/loss_penalty': torchmetrics.MeanMetric(),
+                'val/mix_coeff': torchmetrics.MeanMetric(),
             }
         )
         self.val_metrics_eCLIP = torchmetrics.MetricCollection(
@@ -189,6 +190,8 @@ class LightningModel(pl.LightningModule):
         losses = self._compute_loss(y, y_pred, crop_size=self.crop_size)
         for losss_name in ['loss', 'loss_eCLIP', 'loss_SMI', 'loss_penalty']:
             self.val_metrics_losses[f'val/{losss_name}'].update(losses[losss_name])
+        # keep track of mixing coefficients
+        self.val_metrics_losses['val/mix_coeff'].update(y_pred['mix_coeff'])
 
         # compute and log metrics
         self.val_metrics_eCLIP.update(y['total'], y_pred['total'])
@@ -256,13 +259,16 @@ def _make_callbacks(output_path, validation=False):
         pl.callbacks.ModelCheckpoint(
             dirpath=output_path / 'checkpoints',
             every_n_epochs=1,
+            monitor='val/loss',
+            mode='min',
+            filename='best',
             save_last=True,
-            save_top_k=-1,
+            save_top_k=1,
         ),
         pl.callbacks.LearningRateMonitor('step', log_momentum=True),
     ]
-    # if validation:
-    #     callbacks.append(EarlyStopping('VAL/loss_epoch', patience=15, verbose=True))
+    if validation:
+        callbacks.append(pl.callbacks.EarlyStopping('val/loss', patience=15, verbose=True))
     return callbacks
 
 
