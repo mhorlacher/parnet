@@ -123,9 +123,9 @@ class Fasta:
 
         if self.rt == 'str':
             return sequence
-        elif self.rt == 'int':
-            return np.array(sequence2onehot(sequence), dtype=np.int8)
         elif self.rt == 'onehot':
+            return np.array(sequence2onehot(sequence), dtype=np.int8)
+        elif self.rt == 'int':
             return np.array(sequence2int(sequence), dtype=np.int8)
         else:
             raise ValueError(f'Unknown return type: {self.rt}')

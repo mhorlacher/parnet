@@ -128,7 +128,13 @@ class LightningModel(pl.LightningModule):
 
     def configure_optimizers(self):
         optimizer = self.optimizer_cls(self.parameters())
-        return optimizer
+        return {
+            'optimizer': optimizer,
+            'lr_scheduler': {
+                'scheduler': torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=10),
+                'interval': 'step',
+            },
+        }
 
     def _compute_loss(self, y, y_pred, crop_size=None):
         targets = {'total', 'control'}.intersection(y_pred.keys())
@@ -254,22 +260,22 @@ def _make_loggers(output_path, loggers):
     return [logger(save_dir=output_path, name='', version='') for logger in loggers]
 
 
-def _make_callbacks(output_path, validation=False):
-    callbacks = [
-        pl.callbacks.ModelCheckpoint(
-            dirpath=output_path / 'checkpoints',
-            every_n_epochs=1,
-            monitor='val/loss',
-            mode='min',
-            filename='best',
-            save_last=True,
-            save_top_k=1,
-        ),
-        pl.callbacks.LearningRateMonitor('step', log_momentum=True),
-    ]
-    if validation:
-        callbacks.append(pl.callbacks.EarlyStopping('val/loss', patience=15, verbose=True))
-    return callbacks
+# def _make_callbacks(output_path, validation=False):
+#     callbacks = [
+#         pl.callbacks.ModelCheckpoint(
+#             dirpath=output_path / 'checkpoints',
+#             every_n_epochs=1,
+#             monitor='val/loss',
+#             mode='min',
+#             filename='best',
+#             save_last=True,
+#             save_top_k=1,
+#         ),
+#         pl.callbacks.LearningRateMonitor('step', log_momentum=True),
+#     ]
+#     if validation:
+#         callbacks.append(pl.callbacks.EarlyStopping('val/loss', patience=15, verbose=True))
+#     return callbacks
 
 
 @gin.configurable()
@@ -290,10 +296,11 @@ def train(
     loggers=None,
     loss_fn=MultinomialNLLLossFromLogits,
     metrics=None,
-    optimizer=torch.optim.Adam,
+    optimizer=torch.optim.AdamW,
     batch_size=128,
     use_control=False,
     crop_size=None,
+    callbacks=None,
     # shuffle=None,  # Shuffle is handled by TFDS. Any value >0 will enable 'shuffle_files' in TFDS and call 'ds.shuffle(x)' on the dataset.
     **kwargs,
 ):
@@ -326,7 +333,18 @@ def train(
     trainer = pl.Trainer(
         default_root_dir=output_path,
         logger=_make_loggers(output_path, loggers),
-        callbacks=_make_callbacks(output_path, validation=(val_loader is not None)),
+        callbacks=[
+            pl.callbacks.ModelCheckpoint(
+                dirpath=output_path / 'checkpoints',
+                every_n_epochs=1,
+                monitor='val/loss',
+                mode='min',
+                filename='best',
+                save_last=True,
+                save_top_k=1,
+            ),
+        ]
+        + (callbacks if callbacks is not None else []),
         devices=n_devices,
         **kwargs,
     )
