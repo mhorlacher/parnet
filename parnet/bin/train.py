@@ -16,6 +16,7 @@ import click
 import gin
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import pytorch_lightning as pl
 import torchmetrics
 from torchmetrics import MeanMetric
@@ -32,6 +33,7 @@ class LightningModel(pl.LightningModule):
         use_control=False,
         loss_fn=None,
         optimizer=None,
+        lr_scheduler_cls=None,
         metrics=None,
         crop_size=None,
     ):
@@ -88,6 +90,8 @@ class LightningModel(pl.LightningModule):
                 'val/loss_SMI': torchmetrics.MeanMetric(),
                 'val/loss_penalty': torchmetrics.MeanMetric(),
                 'val/mix_coeff': torchmetrics.MeanMetric(),
+                'val/mix_coeff_std-over-exp': torchmetrics.MeanMetric(),
+                'val/mix_coeff_std-over-batch': torchmetrics.MeanMetric(),
             }
         )
         self.val_metrics_eCLIP = torchmetrics.MetricCollection(
@@ -115,8 +119,8 @@ class LightningModel(pl.LightningModule):
         #     'VAL': nn.ModuleDict({name: metric() for name, metric in metrics.items()}),
         # })
 
-        # optimizer
         self.optimizer_cls = optimizer
+        self.lr_scheduler_cls = lr_scheduler_cls
 
         # FIXME: Disable for now, because there are some issues with Tensorboard and saving
         # the hyperparameters to the YAML file (i.e. "ValueError: dictionary update sequence
@@ -128,13 +132,17 @@ class LightningModel(pl.LightningModule):
 
     def configure_optimizers(self):
         optimizer = self.optimizer_cls(self.parameters())
-        return {
-            'optimizer': optimizer,
-            'lr_scheduler': {
-                'scheduler': torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=10),
-                'interval': 'step',
-            },
-        }
+
+        if self.lr_scheduler_cls is not None:
+            lr_scheduler = {
+                'lr_scheduler': {
+                    'scheduler': self.lr_scheduler_cls(optimizer),
+                    'interval': 'epoch',
+                    'monitor': 'val/loss',
+                }
+            }
+
+        return {'optimizer': optimizer} | (lr_scheduler if self.lr_scheduler_cls is not None else {})
 
     def _compute_loss(self, y, y_pred, crop_size=None):
         targets = {'total', 'control'}.intersection(y_pred.keys())
@@ -198,6 +206,14 @@ class LightningModel(pl.LightningModule):
             self.val_metrics_losses[f'val/{losss_name}'].update(losses[losss_name])
         # keep track of mixing coefficients
         self.val_metrics_losses['val/mix_coeff'].update(y_pred['mix_coeff'])
+
+        if y_pred['mix_coeff'].shape[1] > 1:
+            # compute std over experiments and then mean over batch (i.e. check how much the mixing coefficients vary across experiments)
+            self.val_metrics_losses['val/mix_coeff_std-over-exp'].update(y_pred['mix_coeff'].std(1).mean())
+        
+        if y_pred['mix_coeff'].shape[0] > 1:
+            # compute std over batch and then mean over experiments (i.e. check how much the mixing coefficients vary across samples)
+            self.val_metrics_losses['val/mix_coeff_std-over-batch'].update(y_pred['mix_coeff'].std(0).mean())
 
         # compute and log metrics
         self.val_metrics_eCLIP.update(y['total'], y_pred['total'])
@@ -297,6 +313,7 @@ def train(
     loss_fn=MultinomialNLLLossFromLogits,
     metrics=None,
     optimizer=torch.optim.AdamW,
+    lr_scheduler_cls=None,
     batch_size=128,
     use_control=False,
     crop_size=None,
@@ -317,6 +334,7 @@ def train(
         loss_fn=loss_fn,
         metrics=metrics,
         optimizer=optimizer,
+        lr_scheduler_cls=lr_scheduler_cls,
         use_control=use_control,
         crop_size=crop_size,
     )

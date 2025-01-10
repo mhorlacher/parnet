@@ -20,6 +20,7 @@ from parnet.layers import (
     LikeBasenji2DilatedResConvBlock,
     LikeBasenji2ConvBlock,
 )
+from parnet.layers import StemConv, ResConvBlock, AdditiveMix
 
 
 # %%
@@ -33,7 +34,8 @@ class RBPNet(nn.Module):
         layers=9,
         dilation=1.75,
         body_layer=ResConvBlock1D,
-        head_layer=LinearProjection,
+        head_layer=None,
+        projection_layer=None,
     ):
         """Initializes RBPNet.
 
@@ -51,6 +53,11 @@ class RBPNet(nn.Module):
 
         self.stem = StemConv1D()
         self.body = nn.Sequential(*[body_layer(dilation=int(dilation**i)) for i in range(layers)])
+
+        self.projection = projection_layer() if projection_layer is not None else None
+
+        if head_layer is None:
+            raise ValueError('head_layer must be specified.')
         self.head = head_layer(num_tasks)
 
         # Dummy forward pass to initialize weights. Not strictly required, but allows us
@@ -66,6 +73,11 @@ class RBPNet(nn.Module):
 
         x = self.stem(inputs['sequence'])
         x = self.body(x)
+
+        if self.projection is not None:
+            # Projection, e.g. for embedding
+            x = self.projection(x)
+
         x = self.head(x)
 
         if isinstance(x, torch.Tensor):
@@ -347,3 +359,61 @@ class NoHeadModel(torch.nn.Module):
 
     def forward_mean_pool(self, x):
         return self.model(x).mean(dim=-1)
+
+
+# %%
+@gin.configurable()
+class NewRBPNet(nn.Module):
+    """Implements the RBPNet model as described in Horlacher et al. (2023), DOI: https://doi.org/10.1186/s13059-023-03015-7."""
+
+    def __init__(
+        self,
+        num_tasks=None,
+        layers=9,
+        dilation=1.75,
+    ):
+        super().__init__()
+
+        if num_tasks is None:
+            # We could infer this from the dataset, but let's keep it explicit for now.
+            raise ValueError('num_tasks must be specified in the gin config file.')
+
+        self.stem = StemConv()
+        self.body = nn.Sequential(*[ResConvBlock(dilation=int(dilation**i)) for i in range(layers)])
+        self.projection = LinearProjection()
+
+        self.head = AdditiveMix(num_tasks)
+
+        # Dummy forward pass to initialize weights. Not strictly required, but allows us
+        # to print a proper summary of the model with pytorch_lightning and get the correct
+        # number of parameters.
+        _ = self({'sequence': torch.zeros(2, 4, 100, dtype=torch.float32)})
+
+    def forward(self, inputs, to_probs=False, **kwargs):
+        x = self.stem(inputs['sequence'])
+        x = self.body(x)
+        x = self.projection(x)
+        x = self.head(x)
+
+        if isinstance(x, torch.Tensor):
+            x = {'total': x}
+
+        return x
+
+    def predict_from_sequence(self, sequence, alphabet='ACGT', **kwargs):
+        """Predicts RBP binding probabilities from a sequence.
+
+        Args:
+            sequence (str): Sequence to predict from.
+            alphabet (dict, optional): Alphabet to use for encoding the sequence. Defaults to 'ACGT'.
+
+        Returns:
+            torch.Tensor: Predicted binding probabilities.
+        """
+
+        # One-hot encode sequence, add batch dimension and cast to float.
+        sequence_onehot = sequence_to_onehot(sequence, alphabet=alphabet)
+        sequence_onehot = torch.unsqueeze(sequence_onehot, dim=0).float()
+
+        # Predict and remove batch dimension of size 1.
+        return self.forward({'sequence': sequence_onehot}, **kwargs)
