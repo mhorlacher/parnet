@@ -1,4 +1,3 @@
-# %%
 import sys
 import logging
 
@@ -11,7 +10,6 @@ import transformers
 from sequence_models.convolutional import ByteNet
 from sequence_models.layers import PositionFeedForward
 
-# %%
 from parnet.utils import sequence_to_onehot
 from parnet.layers import (
     StemConv1D,
@@ -23,7 +21,6 @@ from parnet.layers import (
 from parnet.layers import StemConv, ResConvBlock, AdditiveMix
 
 
-# %%
 @gin.configurable()
 class RBPNet(nn.Module):
     """Implements the RBPNet model as described in Horlacher et al. (2023), DOI: https://doi.org/10.1186/s13059-023-03015-7."""
@@ -68,7 +65,7 @@ class RBPNet(nn.Module):
     def forward(self, inputs, to_probs=False, **kwargs):
         logging.debug(f'Received inputs of type: {type(inputs)}.')
         logging.debug(
-            f"Predict on sequence inputs with shape {inputs['sequence'].shape} and dtype {inputs['sequence'].dtype}."
+            f'Predict on sequence inputs with shape {inputs["sequence"].shape} and dtype {inputs["sequence"].dtype}.'
         )
 
         x = self.stem(inputs['sequence'])
@@ -147,9 +144,7 @@ class RBPNetESM(nn.Module):
         # Dummy forward pass to initialize weights. Not strictly required, but allows us
         # to print a proper summary of the model with pytorch_lightning and get the correct
         # number of parameters.
-        _ = self(
-            {'input_ids': torch.randint(0, 6, (1, 100)).long(), 'attention_mask': torch.ones(1, 100).float()}
-        )
+        _ = self({'input_ids': torch.randint(0, 6, (1, 100)).long(), 'attention_mask': torch.ones(1, 100).float()})
 
     def forward(self, inputs):
         x = self.esm(
@@ -164,7 +159,6 @@ class RBPNetESM(nn.Module):
         return x
 
 
-# %%
 @gin.configurable()
 class LikeBasenji2(nn.Module):
     def __init__(
@@ -188,10 +182,7 @@ class LikeBasenji2(nn.Module):
         self.conv_tower = nn.Sequential(*[LikeBasenji2ConvBlock(filters=C, kernel_size=5) for _ in range(4)])
 
         self.dilated_tower = nn.Sequential(
-            *[
-                LikeBasenji2DilatedResConvBlock(filters=C, kernel_size=3, dilation=int(dilation**i))
-                for i in range(L)
-            ]
+            *[LikeBasenji2DilatedResConvBlock(filters=C, kernel_size=3, dilation=int(dilation**i)) for i in range(L)]
         )
 
         self.projection = nn.LazyConv1d(int(C * 1.25), kernel_size=1, padding='same', bias=False)
@@ -206,7 +197,7 @@ class LikeBasenji2(nn.Module):
     def forward(self, inputs, to_probs=False, **kwargs):
         logging.debug(f'Received inputs of type: {type(inputs)}.')
         logging.debug(
-            f"Predict on sequence inputs with shape {inputs['sequence'].shape} and dtype {inputs['sequence'].dtype}."
+            f'Predict on sequence inputs with shape {inputs["sequence"].shape} and dtype {inputs["sequence"].dtype}.'
         )
 
         x = self.stem(inputs['sequence'])
@@ -228,7 +219,6 @@ class LikeBasenji2(nn.Module):
         return x
 
 
-# %%
 @gin.configurable()
 class ByteNetRNA(ByteNet):
     def __init__(
@@ -287,7 +277,6 @@ class ByteNetRNA(ByteNet):
         return x
 
 
-# %%
 @gin.configurable()
 class ByteNetVanilla(ByteNet):
     def __init__(
@@ -361,7 +350,6 @@ class NoHeadModel(torch.nn.Module):
         return self.model(x).mean(dim=-1)
 
 
-# %%
 @gin.configurable()
 class NewRBPNet(nn.Module):
     """Implements the RBPNet model as described in Horlacher et al. (2023), DOI: https://doi.org/10.1186/s13059-023-03015-7."""

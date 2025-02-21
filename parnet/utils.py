@@ -67,10 +67,6 @@ def sparse_to_dense(indices, values, size):
 def sample_to_torch_sparse_tensor_dict(example):
     return {
         'meta': {'name': example['meta']['name'].numpy()},
-        'inputs': tf.nest.map_structure(
-            lambda x: to_sparse_tensor_dict(torch.tensor(x.numpy())), example['inputs']
-        ),
-        'outputs': tf.nest.map_structure(
-            lambda x: to_sparse_tensor_dict(torch.tensor(x.numpy())), example['outputs']
-        ),
+        'inputs': tf.nest.map_structure(lambda x: to_sparse_tensor_dict(torch.tensor(x.numpy())), example['inputs']),
+        'outputs': tf.nest.map_structure(lambda x: to_sparse_tensor_dict(torch.tensor(x.numpy())), example['outputs']),
     }

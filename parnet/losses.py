@@ -1,11 +1,8 @@
-# %%
 import gin
 import torch
-import torch.nn as nn
 import torchmetrics
 
 
-# %%
 def log_likelihood_from_logits(y, y_pred, dim):
     return torch.sum(torch.mul(torch.log_softmax(y_pred, dim=dim), y), dim=dim) + log_combinations(y, dim)
 
@@ -25,7 +22,6 @@ def multinomial_nll_loss(y, y_pred, dim=-1):
     return torch.mean(multinomial_neg_log_probs(y, y_pred, dim))
 
 
-# %%
 @gin.configurable()
 class MultinomialNLLLossFromLogits(torchmetrics.MeanMetric):
     # TODO: Replace with torch implementation. See https://pytorch.org/docs/stable/distributions.html#torch.distributions.multinomial.Multinomial.
@@ -57,7 +53,6 @@ class MultinomialNLLLossFromLogits(torchmetrics.MeanMetric):
         super().update(nll_reduced)
 
 
-# %%
 # @gin.configurable()
 # class ClippedMultinomialNLLLossFromLogits(torchmetrics.MeanMetric):
 #     def __init__(self, dim=-1, reduction=torch.mean, clip=0, *args, **kwargs):

@@ -1,0 +1,28 @@
+name: parnet # TODO: Change!
+
+channels:
+  - conda-forge
+  - nodefaults
+
+dependencies:
+  - python=3.12
+  - ipython
+  - ipykernel
+  - pip
+
+  - conda-forge::pytorch
+
+  - pip:
+    - pre-commit
+    - gin_config>=0.5.0
+    - lightning>=2.1.2
+    - biopython==1.83
+    - click>=8.1.7
+    - tensorflow>=2.6.0
+    - tensorflow-datasets==4.9.3
+    - pandas
+    - lightning
+    - datasets
+
+    # for development
+    - -e .

@@ -1,4 +1,3 @@
-# %%
 import sys
 import logging
 
@@ -8,7 +7,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-# %%
 @gin.configurable()
 class StemConv1D(nn.Module):
     """Class to be used as first layer of a model.
@@ -42,7 +40,6 @@ class StemConv1D(nn.Module):
         return x
 
 
-# %%
 @gin.configurable()
 class ResConvBlock1D(nn.Module):
     # TODO: Add documentation.
@@ -146,7 +143,6 @@ class LikeBasenji2DilatedResConvBlock(nn.Module):
         return x
 
 
-# %%
 @gin.configurable()
 class LinearProjection(nn.Module):
     """Performs a linear projection of the input to the specified number of output channels.
@@ -163,7 +159,6 @@ class LinearProjection(nn.Module):
         return self.pointwise_conv(x)
 
 
-# %%
 @gin.configurable()
 class SequenceLinearMix(nn.Module):
     def __init__(self, num_tasks):
@@ -221,7 +216,7 @@ class NewMixCoeffMLP(nn.Module):
     def forward(self, x):
         # x should have shape [batch, hidden_dim, length]
 
-        x = x.mean(-1) # --> [batch, hidden_dim]
+        x = x.mean(-1)  # --> [batch, hidden_dim]
         logging.debug(f'x (pooled): {x.shape}')
 
         x = self.dense1(x)  # --> [batch, units]
@@ -253,7 +248,6 @@ class NewMixCoeffPenalty(nn.Module):
         return mix_coeff * self.factor
 
 
-# %%
 @gin.configurable()
 class AdditiveMix(nn.Module):
     def __init__(
@@ -315,7 +309,6 @@ class AdditiveMix(nn.Module):
         return return_dict
 
 
-# %%
 @gin.configurable()
 class NewAdditiveMix(nn.Module):
     def __init__(
@@ -407,9 +400,7 @@ class ResConvBlock(nn.Module):
     def __init__(self, filters=128, kernel_size=3, dilation=1, dropout_rate=0.3) -> None:
         super().__init__()
 
-        self.conv_block_1 = ConvBlock(
-            int(filters * 1.5), kernel_size, dilation=dilation, batch_norm_size=filters
-        )
+        self.conv_block_1 = ConvBlock(int(filters * 1.5), kernel_size, dilation=dilation, batch_norm_size=filters)
         self.conv_block_2 = ConvBlock(filters, 1, batch_norm_size=int(filters * 1.5))
         self.dropout = nn.Dropout(dropout_rate)
 

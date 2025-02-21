@@ -1,0 +1,60 @@
+name: Create and publish a Docker image to GitHub Packages
+
+on:
+  push:
+    tags:
+      - '*' # Launch workflow on all new tags (i.e. version 0.1.0, 0.1.1, 0.2.0, etc.)
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+
+jobs:
+  build-and-push-image:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      attestations: write
+      id-token: write
+
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 
+        id: check_workflow_flag
+        uses: mikefarah/yq@master
+        with:
+          cmd: echo "WORKFLOW_FLAG=$(yq '.docker' workflows-config.yml)" >> $GITHUB_ENV
+
+      - name: Print workflow flag
+        run: echo ${{ env.WORKFLOW_FLAG }}
+
+      - name: Log in to the Container registry
+        if: ${{ env.WORKFLOW_FLAG == 'true' }}
+        uses: docker/login-action@65b78e6e13532edd9afa3aa52ac7964289d1a9c1
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Extract metadata (tags, labels) for Docker
+        if: ${{ env.WORKFLOW_FLAG == 'true' }}
+        id: meta
+        uses: docker/metadata-action@9ec57ed1fcdbf14dcef7dfbe97b2010124a938b7
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+      
+      - name: Build and push Docker image
+        if: ${{ env.WORKFLOW_FLAG == 'true' }}
+        id: push
+        uses: docker/build-push-action@f2a1d5e99d037542a71f64918e516c093c6f3fc4
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+            

@@ -1,11 +1,9 @@
-# %%
 # disable tensorflow logs and enable dynamic memory growth (tf is only used for data loading via TFDS)
 from parnet.utils import _disable_tensorflow_logs, _set_tf_dynamic_memory_growth
 
 _disable_tensorflow_logs()
 _set_tf_dynamic_memory_growth()
 
-# %%
 import datetime
 import shutil
 from pathlib import Path
@@ -25,7 +23,6 @@ from parnet.data.datasets import TFDSDataset
 from parnet.losses import MultinomialNLLLossFromLogits
 
 
-# %%
 class LightningModel(pl.LightningModule):
     def __init__(
         self,
@@ -210,7 +207,7 @@ class LightningModel(pl.LightningModule):
         if y_pred['mix_coeff'].shape[1] > 1:
             # compute std over experiments and then mean over batch (i.e. check how much the mixing coefficients vary across experiments)
             self.val_metrics_losses['val/mix_coeff_std-over-exp'].update(y_pred['mix_coeff'].std(1).mean())
-        
+
         if y_pred['mix_coeff'].shape[0] > 1:
             # compute std over batch and then mean over experiments (i.e. check how much the mixing coefficients vary across samples)
             self.val_metrics_losses['val/mix_coeff_std-over-batch'].update(y_pred['mix_coeff'].std(0).mean())
@@ -233,65 +230,11 @@ class LightningModel(pl.LightningModule):
             self.log_dict(self.val_metrics_SMI.compute(), on_step=False, on_epoch=True)
             self.val_metrics_SMI.reset()
 
-    # def compute_and_log_loss(self, y, y_pred, partition=None):
-    #     # compute loss across output tracks, i.e. total (+ control, if available)
-    #     loss_sum = torch.tensor(0.0, dtype=torch.float32).to(y_pred['total'].device)  # FIXME: this is a hack
-    #     for track_name in set(y_pred.keys()).intersection({'total', 'control'}):
-    #         # 1. compute loss
-    #         loss = self.loss_fn[f'{partition}_{track_name}'](y[track_name], y_pred[track_name])
-    #         # 2. log loss
-    #         self.log(
-    #             f'loss/{partition}_{track_name}',
-    #             loss,
-    #             on_step=True,
-    #             on_epoch=True,
-    #             prog_bar=False,
-    #         )
-    #         # 3. add loss to total loss
-    #         loss_sum += loss
 
-    #     return loss_sum
-
-    # def compute_and_log_metics(self, y, y_pred, partition=None):
-    #     # for name, metric in self.metrics[partition].items():
-    #     #     metric(y, y_pred)
-    #     #     self.log(f'{name}/{partition}', metric, on_step=True, on_epoch=True, prog_bar=False)
-
-    #     for track_name in set(y_pred.keys()).intersection({'total', 'control'}):
-    #         for metric_name, metric in self.metrics[f'{partition}_{track_name}'].items():
-    #             metric(y[track_name], y_pred[track_name])
-    #             self.log(
-    #                 f'{metric_name}/{partition}_{track_name}',
-    #                 metric,
-    #                 on_step=True,
-    #                 on_epoch=True,
-    #                 prog_bar=False,
-    #             )
-
-
-# %%
 def _make_loggers(output_path, loggers):
     if loggers is None:
         return []
     return [logger(save_dir=output_path, name='', version='') for logger in loggers]
-
-
-# def _make_callbacks(output_path, validation=False):
-#     callbacks = [
-#         pl.callbacks.ModelCheckpoint(
-#             dirpath=output_path / 'checkpoints',
-#             every_n_epochs=1,
-#             monitor='val/loss',
-#             mode='min',
-#             filename='best',
-#             save_last=True,
-#             save_top_k=1,
-#         ),
-#         pl.callbacks.LearningRateMonitor('step', log_momentum=True),
-#     ]
-#     if validation:
-#         callbacks.append(pl.callbacks.EarlyStopping('val/loss', patience=15, verbose=True))
-#     return callbacks
 
 
 @gin.configurable()
@@ -300,7 +243,6 @@ class DataLoader(torch.utils.data.DataLoader):
         super().__init__(*args, **kwargs)
 
 
-# %%
 @gin.configurable(denylist=['tfds_filepath', 'output_path'])
 def train(
     data_path,
@@ -318,16 +260,8 @@ def train(
     use_control=False,
     crop_size=None,
     callbacks=None,
-    # shuffle=None,  # Shuffle is handled by TFDS. Any value >0 will enable 'shuffle_files' in TFDS and call 'ds.shuffle(x)' on the dataset.
     **kwargs,
 ):
-    # if shuffle is None:
-    #     logging.warning(
-    #         "'shuffle' is None. This will result in no shuffling of the dataset during training. To shuffle the dataset, set shuffle > 0."
-    #     )
-    # else:
-    #     logging.info(f"Shuffling dataset with buffer size {shuffle}.")
-
     # wrap model in LightningModule
     lightning_model = LightningModel(
         model,
@@ -387,7 +321,6 @@ def train(
     torch.save(lightning_model.model, output_path / 'model.pt')
 
 
-# %%
 @click.command()
 @click.argument('data_path', required=False, type=str, default=None)
 @click.option('--config', type=str, default=None)
@@ -412,12 +345,6 @@ def main(data_path, config, log_level, just_print_model, n_devices, output):
         if output_path.exists():
             logging.warning(f'Output path {output_path} already exists. Overwriting.')
         output_path.mkdir(parents=True, exist_ok=True)
-
-        # output_path = Path(f'{output}/{datetime.datetime.now().strftime("%Y%m%d-%H%M%S")}')
-        # if not just_print_model:
-        #     if output_path.exists():
-        #         logging.warning(f"Output path {output_path} already exists. Overwriting.")
-        #     output_path.mkdir(parents=True, exist_ok=True)
 
         # copy gin config
         if config is not None:

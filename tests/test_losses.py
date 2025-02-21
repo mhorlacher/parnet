@@ -8,7 +8,7 @@ import tensorflow_probability as tfp
 
 from parnet.losses import MultinomialNLLLossFromLogits, multinomial_nll_loss
 
-# %%
+
 def compute_manual_multinomial_nll(counts, logits):
     nll = []
     for i in range(counts.shape[0]):
@@ -18,18 +18,23 @@ def compute_manual_multinomial_nll(counts, logits):
             nll.append(-Multinomial(int(torch.sum(counts_ij)), logits=logits_ij).log_prob(counts_ij))
     return torch.mean(torch.tensor(nll))
 
+
 # %%
 def compute_multinomial_nll_tensorflow(y, y_pred):
     y_tf, y_pred_tf = tf.constant(y, dtype=tf.float32), tf.constant(y_pred, dtype=tf.float32)
-    return tf.reduce_mean(-1. * tfp.distributions.Multinomial(total_count=tf.reduce_sum(y_tf, axis=-1), logits=y_pred_tf).log_prob(y_tf))
+    return tf.reduce_mean(
+        -1.0 * tfp.distributions.Multinomial(total_count=tf.reduce_sum(y_tf, axis=-1), logits=y_pred_tf).log_prob(y_tf)
+    )
+
 
 # %%
 class TestLosses(unittest.TestCase):
-
     def test_multinomial_nll_loss(self):
         # arrange
         y, y_pred = torch.randint(0, 10, size=(2, 7, 101)), torch.rand(2, 7, 101)
-        nll_tf = torch.tensor(compute_multinomial_nll_tensorflow(y.numpy(), y_pred.numpy()).numpy(), dtype=torch.float32)
+        nll_tf = torch.tensor(
+            compute_multinomial_nll_tensorflow(y.numpy(), y_pred.numpy()).numpy(), dtype=torch.float32
+        )
 
         # act
         nll = multinomial_nll_loss(y, y_pred)
@@ -44,7 +49,9 @@ class TestLosses(unittest.TestCase):
     def test_MultinomialNLLLossFromLogits(self):
         # arrange
         y, y_pred = torch.randint(0, 10, size=(2, 7, 101)), torch.rand(2, 7, 101)
-        nll_tf = torch.tensor(compute_multinomial_nll_tensorflow(y.numpy(), y_pred.numpy()).numpy(), dtype=torch.float32)
+        nll_tf = torch.tensor(
+            compute_multinomial_nll_tensorflow(y.numpy(), y_pred.numpy()).numpy(), dtype=torch.float32
+        )
 
         # act
         nll = MultinomialNLLLossFromLogits()(y, y_pred)

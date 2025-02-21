@@ -1,31 +1,73 @@
-# parnet
+# PanRBPNet: A RBP-binding-informed RNA Foundation Model
+
+PanRBPNet - or `parnet` - is a multi-task extension of our previous [RBPNet](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-023-03015-7) model for prediction RNA-protein binding at nucleotide resolution. 
+
+> [!WARNING]  
+> This package is under heavy development and while it's API is somewhat stable, it can change at any time and without warning. If you are using this package in your own research, it's highly recommended to either 1) fork the respository or 2) pin the version / commit of the package you are using. 
 
 ## Installation
 
-parnet can be installed for inference-only via pip:
+### Using Pip
 
 ```
-pip install git+https://github.com/mhorlacher/parnet.git
+pip install parnet
 ```
 
-In order to train parnet models or to create your own training datasets, additional packages must be installed:
+or 
 
 ```
-# required for loading TFDS datasets
-pip install tensorflow>=2.15.0 tensorflow_datasets>=4.9.3
-
-# required for creating TFDS datasets from scratch
-pip install pandas pyyaml pyBigWig pysam
+pip install git+https://github.com/github.com/mhorlacher/parnet.git@SOME_BRANCH
 ```
 
-## Datasets
+to install from a specific branch (e.g. the latest development version of package version). 
 
-Parnet's training datasets are stored in [TFDS](https://www.tensorflow.org/datasets) format. The primary training dataset of this study, which is composed of 223 eCLIP tracks from the [ENCODE project](https://www.encodeproject.org/), can be obtained via:
+### Using Conda
 
 ```
-# download compressed TFDS dataset
-wget https://zenodo.org/records/10455341/files/encode.tfds.tar.xz
+git clone https://github.com/github.com/mhorlacher/parnet
+cd parnet
+make env
+conda activate parnet
+```
 
-# unpack
-tar -xJf encode.tfds.tar.xz
+### Using Docker
+
+First, pull the docker image. 
+```
+docker pull 
+```
+
+Then, run commands as shown below. 
+```
+docker run parnet --help 
+```
+To provide input files and capture output file, mount host files and/or directories using `--mount` (see the Docker [docs](https://docs.docker.com/engine/storage/bind-mounts/)). 
+
+
+## Dataset
+
+Parnet's training datasets are stored in Huggingface's dataset format (HFDS). The primary training dataset of this study, which is composed of 223 eCLIP tracks from the ENCODE project, can be obtained via: 
+
+### Download compressed TFDS dataset
+```
+wget https://zenodo.org/records/14176118/files/encode.filtered.5.hfds.tar.gz
+```
+
+### Unpack TFDS dataset
+```
+tar -xJf encode.hfds.tar.xz
+```
+
+## Usage
+
+```
+Usage: parnet [OPTIONS] COMMAND [ARGS]...
+
+Options:
+  --help  Show this message and exit.
+
+Commands:
+  build-dataset
+  predict
+  train
 ```
