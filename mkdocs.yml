@@ -1,0 +1,8 @@
+site_name: parnet | Documentation
+
+theme:
+  name: "material"
+
+plugins:
+- search
+- mkdocstrings

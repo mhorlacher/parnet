@@ -1,0 +1,51 @@
+name: Update and deploy mkdocs documentation to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+
+      - uses: actions/checkout@v4
+      - name: Configure Git Credentials
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+
+      - name: 
+        id: check_workflow_flag
+        uses: mikefarah/yq@master
+        with:
+          cmd: echo "WORKFLOW_FLAG=$(yq '.pypi' workflows-config.yml)" >> $GITHUB_ENV
+
+      - name: Print workflow flag
+        run: echo ${{ env.WORKFLOW_FLAG }}
+          
+      - uses: actions/setup-python@v5
+        if: ${{ env.WORKFLOW_FLAG == 'true' }}
+        with:
+          python-version: 3.x
+          
+      - run: echo "cache_id=$(date --utc '+%V')" >> $GITHUB_ENV
+        if: ${{ env.WORKFLOW_FLAG == 'true' }}
+      
+      - uses: actions/cache@v4
+        if: ${{ env.WORKFLOW_FLAG == 'true' }}
+        with:
+          key: mkdocs-material-${{ env.cache_id }}
+          path: .cache
+          restore-keys: |
+            mkdocs-material-
+            
+      - run: pip install mkdocs-material mkdocstrings[python] mkdocs-material
+        if: ${{ env.WORKFLOW_FLAG == 'true' }}
+
+      - run: mkdocs gh-deploy --force
+        if: ${{ env.WORKFLOW_FLAG == 'true' }}

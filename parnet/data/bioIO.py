@@ -17,18 +17,18 @@ import pandas as pd
 
 # %%
 # map bases to their integer representation
-base2int = {"A": 0, "C": 1, "G": 2, "T": 3}
+base2int = {'A': 0, 'C': 1, 'G': 2, 'T': 3}
 
 # map bases to their complement
-baseComplement = {"A": "T", "C": "G", "G": "C", "T": "A"}
+baseComplement = {'A': 'T', 'C': 'G', 'G': 'C', 'T': 'A'}
 
 
 def reverse_complement(dna_string):
     """Returns the reverse-complement for a DNA string."""
 
-    complement = [baseComplement.get(base, "N") for base in dna_string]
+    complement = [baseComplement.get(base, 'N') for base in dna_string]
     reversed_complement = reversed(complement)
-    return "".join(list(reversed_complement))
+    return ''.join(list(reversed_complement))
 
 
 def sequence2int(sequence, mapping=base2int):
@@ -70,31 +70,30 @@ def mask_noncanonical_bases(sequence):
     Returns:
         str: Masked DNA sequence.
     """
-    return "".join([base if base in base2int else "N" for base in sequence])
+    return ''.join([base if base in base2int else 'N' for base in sequence])
 
 
 # %%
 class Fasta:
-    def __init__(self, filepath, mask_noncanonical_bases=True, one_hot=True) -> None:
+    def __init__(self, filepath, mask_noncanonical_bases=True, rt='onehot') -> None:
         """
         Initialize a Fasta object.
 
         Args:
             filepath (str): The path to the FASTA file.
             mask_noncanonical_bases (bool, optional): Whether to mask non-canonical bases with 'N'. Defaults to True.
+            rt: return type, 'onehot', 'int' or 'str'. Defaults to 'onehot'.
         """
         try:
             import pysam
         except ModuleNotFoundError:
-            raise ModuleNotFoundError(
-                "Please install pysam. See https://github.com/pysam-developers/pysam"
-            )
+            raise ModuleNotFoundError('Please install pysam. See https://github.com/pysam-developers/pysam')
 
-        self.one_hot = one_hot
+        self.rt = rt
         self.mask_noncanonical_bases = mask_noncanonical_bases
         self._fasta = pysam.FastaFile(filepath)
 
-    def fetch(self, chrom, start, end, strand="+", **kwargs):
+    def fetch(self, chrom, start, end, strand='+', **kwargs):
         """
         Fetch the sequence from the FASTA file.
 
@@ -115,18 +114,21 @@ class Fasta:
             sequence = mask_noncanonical_bases(sequence)
 
         # Reverse complement if necessary
-        if strand == "+":
+        if strand == '+':
             pass
-        elif strand == "-":
-            sequence = "".join(reverse_complement(sequence))
+        elif strand == '-':
+            sequence = ''.join(reverse_complement(sequence))
         else:
-            raise ValueError(f"Unknown strand: {strand}")
+            raise ValueError(f'Unknown strand: {strand}')
 
-        # Convert to one-hot encoded numpy array. We assume that the alphabet is fairly small (usually 4 or 5 bases).
-        if self.one_hot:
+        if self.rt == 'str':
+            return sequence
+        elif self.rt == 'onehot':
             return np.array(sequence2onehot(sequence), dtype=np.int8)
-        else:
+        elif self.rt == 'int':
             return np.array(sequence2int(sequence), dtype=np.int8)
+        else:
+            raise ValueError(f'Unknown return type: {self.rt}')
 
     def __call__(self, *args, **kwargs):
         return self.fetch(*args, **kwargs)
@@ -135,8 +137,8 @@ class Fasta:
 # %%
 class Bed:
     def __init__(self, filepath) -> None:
-        self.bed_df = pd.read_csv(filepath, sep="\t", header=None)
-        self.bed_df.columns = ["chrom", "start", "end", "name", "score", "strand"] + [
+        self.bed_df = pd.read_csv(filepath, sep='\t', header=None)
+        self.bed_df.columns = ['chrom', 'start', 'end', 'name', 'score', 'strand'] + [
             str(i) for i in range(6, len(self.bed_df.columns))
         ]
 
@@ -159,9 +161,7 @@ class BigWig:
         try:
             import pyBigWig  # TODO: For now I prefer to have imports at the top of the file.
         except ModuleNotFoundError:
-            raise ModuleNotFoundError(
-                "Please install pyBigWig. See https://github.com/deeptools/pyBigWig"
-            )
+            raise ModuleNotFoundError('Please install pyBigWig. See https://github.com/deeptools/pyBigWig')
 
         self._bigWig = pyBigWig.open(bigwig_filepath)
 
@@ -185,7 +185,7 @@ class StrandedBigWig:
         self._bigWig_minus = BigWig(bigwig_minus)
         self.reverse_minus = reverse_minus
 
-    def values(self, chrom, start, end, strand="+", **kwargs):
+    def values(self, chrom, start, end, strand='+', **kwargs):
         """Returns values for a given range and strand.
 
         Args:
@@ -198,16 +198,16 @@ class StrandedBigWig:
             numpy.array: Numpy array of shape (end-start, )
         """
 
-        if strand == "+":
+        if strand == '+':
             bigWig = self._bigWig_plus
-        elif strand == "-":
+        elif strand == '-':
             bigWig = self._bigWig_minus
         else:
-            raise ValueError(f"Unexpected strand: {strand}")
+            raise ValueError(f'Unexpected strand: {strand}')
 
         values = bigWig.values(chrom, start, end)
 
-        if strand == "-" and self.reverse_minus:
+        if strand == '-' and self.reverse_minus:
             values = values[::-1]
 
         return values
@@ -256,24 +256,22 @@ class DataSpec:
         # parse YAML dataspec
         with open(dataspec_yml) as f:
             self._dataspec = yaml.load(f, yaml.FullLoader)
-        self.tasks = self._dataspec["outputs"].keys()
+        self.tasks = self._dataspec['outputs'].keys()
 
         # initialize fasta-file connector
-        self._dataspec["inputs"]["sequence"] = Fasta(
-            self._dataspec["inputs"]["sequence"]
-        )
+        self._dataspec['inputs']['sequence'] = Fasta(self._dataspec['inputs']['sequence'])
 
         # initialize eCLIP bigWig-file connectors, one for each task
-        for task in self._dataspec["outputs"]:
-            self._dataspec["outputs"][task]["eCLIP"] = StrandedBigWig(
-                *self._dataspec["outputs"][task]["eCLIP"]
+        for task in self._dataspec['outputs']:
+            self._dataspec['outputs'][task]['eCLIP'] = StrandedBigWig(
+                *self._dataspec['outputs'][task]['eCLIP']
             )
 
         # if control counts are available, initialize bigWig-file connectors for controls
         if control:
-            for task in self._dataspec["outputs"]:
-                self._dataspec["outputs"][task]["control"] = StrandedBigWig(
-                    *self._dataspec["outputs"][task]["control"]
+            for task in self._dataspec['outputs']:
+                self._dataspec['outputs'][task]['control'] = StrandedBigWig(
+                    *self._dataspec['outputs'][task]['control']
                 )
 
     @property
@@ -285,20 +283,18 @@ class DataSpec:
         """
 
         signature = {
-            "meta": {
-                "name": tf.TensorSpec(shape=(), dtype=tf.string),
+            'meta': {
+                'name': tf.TensorSpec(shape=(), dtype=tf.string),
             },
-            "inputs": {
-                "sequence": tf.TensorSpec(shape=(None, 4), dtype=tf.int8),
+            'inputs': {
+                'sequence': tf.TensorSpec(shape=(None, 4), dtype=tf.int8),
             },
-            "outputs": {
-                "eCLIP": tf.TensorSpec(shape=(None, None), dtype=tf.float32),
+            'outputs': {
+                'eCLIP': tf.TensorSpec(shape=(None, None), dtype=tf.float32),
             },
         }
         if self.control:
-            signature["outputs"]["control"] = tf.TensorSpec(
-                shape=(None, None), dtype=tf.float32
-            )
+            signature['outputs']['control'] = tf.TensorSpec(shape=(None, None), dtype=tf.float32)
         return signature
 
     @property
@@ -310,23 +306,19 @@ class DataSpec:
         """
 
         features = {
-            "meta": {
-                "name": tfds.features.Tensor(shape=(), dtype=tf.string),
+            'meta': {
+                'name': tfds.features.Tensor(shape=(), dtype=tf.string),
             },
-            "inputs": {
-                "sequence": tfds.features.Tensor(
-                    shape=(None, None), dtype=tf.int8, encoding="zlib"
-                ),
+            'inputs': {
+                'sequence': tfds.features.Tensor(shape=(None, None), dtype=tf.int8, encoding='zlib'),
             },
-            "outputs": {
-                "eCLIP": tfds.features.Tensor(
-                    shape=(None, None), dtype=tf.float32, encoding="zlib"
-                ),
+            'outputs': {
+                'eCLIP': tfds.features.Tensor(shape=(None, None), dtype=tf.float32, encoding='zlib'),
             },
         }
         if self.control:
-            features["outputs"]["control"] = tfds.features.Tensor(
-                shape=(None, None), dtype=tf.float32, encoding="zlib"
+            features['outputs']['control'] = tfds.features.Tensor(
+                shape=(None, None), dtype=tf.float32, encoding='zlib'
             )
         features = tfds.features.FeaturesDict(features)
         return features
@@ -361,7 +353,7 @@ class DataSpec:
             dict: Dictionary containing the sample tensors.
         """
 
-        sample = {"meta": {}, "inputs": {}, "outputs": {}}
+        sample = {'meta': {}, 'inputs': {}, 'outputs': {}}
 
         # prepare padding
         # TODO: Move this to a separate function.
@@ -369,48 +361,32 @@ class DataSpec:
         padding_left = int(np.ceil((target_size - size) / 2))
         padding_right = int(np.floor((target_size - size) / 2))
 
-        sample["inputs"]["sequence"] = self._dataspec["inputs"]["sequence"](
-            chrom, start, end, strand
-        )
-        sample["inputs"]["sequence"] = tf.pad(
-            sample["inputs"]["sequence"],
+        sample['inputs']['sequence'] = self._dataspec['inputs']['sequence'](chrom, start, end, strand)
+        sample['inputs']['sequence'] = tf.pad(
+            sample['inputs']['sequence'],
             paddings=[[padding_left, padding_right], [0, 0]],
         )
 
-        sample["outputs"]["eCLIP"] = np.stack(
-            [
-                self._dataspec["outputs"][task]["eCLIP"](chrom, start, end, strand)
-                for task in self.tasks
-            ]
+        sample['outputs']['eCLIP'] = np.stack(
+            [self._dataspec['outputs'][task]['eCLIP'](chrom, start, end, strand) for task in self.tasks]
         )
-        sample["outputs"]["eCLIP"] = tf.pad(
-            sample["outputs"]["eCLIP"], paddings=[[0, 0], [padding_left, padding_right]]
+        sample['outputs']['eCLIP'] = tf.pad(
+            sample['outputs']['eCLIP'], paddings=[[0, 0], [padding_left, padding_right]]
         )
         if self.control:
-            sample["outputs"]["control"] = np.stack(
-                [
-                    self._dataspec["outputs"][task]["control"](
-                        chrom, start, end, strand
-                    )
-                    for task in self.tasks
-                ]
+            sample['outputs']['control'] = np.stack(
+                [self._dataspec['outputs'][task]['control'](chrom, start, end, strand) for task in self.tasks]
             )
-            sample["outputs"]["control"] = tf.pad(
-                sample["outputs"]["control"],
+            sample['outputs']['control'] = tf.pad(
+                sample['outputs']['control'],
                 paddings=[[0, 0], [padding_left, padding_right]],
             )
 
         # meta/name
-        sample["meta"]["name"] = tf.constant(
-            f"{chrom}:{start}-{end}:{strand}", dtype=tf.string
-        )
+        sample['meta']['name'] = tf.constant(f'{chrom}:{start}-{end}:{strand}', dtype=tf.string)
 
         # assert padding
-        assert (
-            target_size
-            == sample["outputs"]["eCLIP"].shape[1]
-            == sample["inputs"]["sequence"].shape[0]
-        )
+        assert target_size == sample['outputs']['eCLIP'].shape[1] == sample['inputs']['sequence'].shape[0]
 
         return sample
 

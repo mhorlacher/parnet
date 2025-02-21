@@ -5,9 +5,7 @@ import click
 import torch
 from Bio import SeqIO
 
-from parnet.utils import sequence_to_onehot
 
-# %%
 @click.command()
 @click.argument('fasta', type=click.Path(exists=True))
 @click.option('-m', '--model', type=click.Path(exists=True))
@@ -23,6 +21,7 @@ def main(fasta, model, output_directory):
 
         # save each prediction as a dedicated .pt file
         torch.save(pred, pathlib.Path(output_directory) / f'{record.id}.parnet.pt')
+
 
 # %%
 if __name__ == '__main__':
