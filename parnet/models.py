@@ -19,6 +19,7 @@ from parnet.layers import (
     LikeBasenji2ConvBlock,
 )
 from parnet.layers import StemConv, ResConvBlock, AdditiveMix
+from parnet.constants import IDX_2_EXPERIMENT
 
 
 @gin.configurable()
@@ -171,19 +172,17 @@ class LikeBasenji2(nn.Module):
     ):
         super().__init__()
 
-        self.stem = nn.Sequential(
-            *[
-                nn.LazyConv1d(int(C * 0.5), kernel_size=11, padding='same'),
-                nn.BatchNorm1d(int(C * 0.5)),
-                nn.GELU(),
-            ]
-        )
+        self.stem = nn.Sequential(*[
+            nn.LazyConv1d(int(C * 0.5), kernel_size=11, padding='same'),
+            nn.BatchNorm1d(int(C * 0.5)),
+            nn.GELU(),
+        ])
 
         self.conv_tower = nn.Sequential(*[LikeBasenji2ConvBlock(filters=C, kernel_size=5) for _ in range(4)])
 
-        self.dilated_tower = nn.Sequential(
-            *[LikeBasenji2DilatedResConvBlock(filters=C, kernel_size=3, dilation=int(dilation**i)) for i in range(L)]
-        )
+        self.dilated_tower = nn.Sequential(*[
+            LikeBasenji2DilatedResConvBlock(filters=C, kernel_size=3, dilation=int(dilation**i)) for i in range(L)
+        ])
 
         self.projection = nn.LazyConv1d(int(C * 1.25), kernel_size=1, padding='same', bias=False)
         # self.projection = nn.LazyLinear(C*1.25, bias=False)

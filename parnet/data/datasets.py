@@ -4,8 +4,7 @@ import sys
 import gin
 import torch
 import numpy as np
-import tensorflow as tf  # TODO: Remove this dependency. See https://www.tensorflow.org/datasets/tfless_tfds#use_with_pytorch.
-import tensorflow_datasets as tfds
+
 import datasets
 
 
@@ -23,6 +22,12 @@ class TFDSDataset(torch.utils.data.IterableDataset):
             data_name (str, optional): Name of dataset (is required for loading for some fuckin reason). Defaults to 'parnet_dataset'.
         """
         super(TFDSDataset).__init__()
+
+        try:
+            # import tensorflow as tf  # TODO: Remove this dependency. See https://www.tensorflow.org/datasets/tfless_tfds#use_with_pytorch.
+            import tensorflow_datasets as tfds
+        except ImportError:
+            raise
 
         self.split = split
 
@@ -141,9 +146,7 @@ class MaskedTFDSDataset(TFDSDataset):
 
 @gin.configurable(denylist=['hfds_path', 'split'])
 class HFDSDataset(torch.utils.data.Dataset):
-    def __init__(
-        self, hfds_path, split, shuffle=True, keep_in_memory=False, sequence_as_ids=False, return_meta=False
-    ):
+    def __init__(self, hfds_path, split, shuffle=True, keep_in_memory=False, sequence_as_ids=False, return_meta=False):
         super(HFDSDataset).__init__()
 
         self.shuffle = shuffle
@@ -160,18 +163,13 @@ class HFDSDataset(torch.utils.data.Dataset):
     def _format_example(self, example):
         example = {
             'inputs': {
-                'sequence': torch.sparse_coo_tensor(**example['inputs']['sequence'])
-                .to_dense()
-                .to(torch.float32)
-                .T
+                'sequence': torch.sparse_coo_tensor(**example['inputs']['sequence']).to_dense().to(torch.float32).T
             },
             'outputs': {
                 # Outputs stay the same but will be renamed for compatibility.
                 # (TODO: Modify upstream code to accept names from dataset as-is)
                 'total': torch.sparse_coo_tensor(**example['outputs']['eCLIP']).to_dense().to(torch.float32),
-                'control': torch.sparse_coo_tensor(**example['outputs']['control'])
-                .to_dense()
-                .to(torch.float32),
+                'control': torch.sparse_coo_tensor(**example['outputs']['control']).to_dense().to(torch.float32),
             },
             'meta': {
                 'name': example['meta']['name'],
@@ -186,9 +184,7 @@ class HFDSDataset(torch.utils.data.Dataset):
         # or better, just as a string of nucleotides.
         if self.sequence_as_ids:
             x = (1 - torch.sum(example['inputs']['sequence'], dim=0)) * 4  # we set 4 as the padding ID
-            x += torch.argmax(
-                example['inputs']['sequence'], dim=0
-            )  # ..and add the one-hot encoded nucleotide ids
+            x += torch.argmax(example['inputs']['sequence'], dim=0)  # ..and add the one-hot encoded nucleotide ids
             example['inputs']['input_ids'] = x.long()
             example['inputs']['attention_mask'] = (x != 4).float()  # 4 is the padding ID
 

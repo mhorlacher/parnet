@@ -7,6 +7,15 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
+class LambdaLayer(torch.nn.Module):
+    def __init__(self, fun):
+        super(LambdaLayer, self).__init__()
+        self.fun = fun
+
+    def forward(self, *args, **kwargs):
+        return self.fun(*args, **kwargs)
+
+
 @gin.configurable()
 class StemConv1D(nn.Module):
     """Class to be used as first layer of a model.

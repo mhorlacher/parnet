@@ -14,3 +14,5 @@ from lightning.pytorch import seed_everything
 
 __seed__ = 42
 seed_everything(__seed__)
+
+from . import constants
