@@ -6,7 +6,7 @@ import torch.nn as nn
 
 
 from parnet.utils import sequence_to_onehot
-from parnet.layers import StemConv1D, ResConvBlock1D, AdditiveMixHead
+from parnet.layers import StemConv1D, ResConvBlock1D, AdditiveMix
 
 
 @gin.configurable()
@@ -20,7 +20,7 @@ class RBPNet(nn.Module):
         dilation: int = 1.75,
         stem_layer: nn.Module = StemConv1D,
         body_layer: nn.Module = ResConvBlock1D,
-        head_layer: nn.Module = AdditiveMixHead,
+        head_layer: nn.Module = AdditiveMix,
         embedding_dim: int = 128,
     ):
         """Initializes RBPNet.

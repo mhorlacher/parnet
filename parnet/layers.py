@@ -150,7 +150,7 @@ class MixCoeffPenalty(nn.Module):
 
 
 @gin.configurable()
-class AdditiveMixHead(nn.Module):
+class AdditiveMix(nn.Module):
     """Additive mixing of target and control tracks.
 
     This layer takes a nucleotide-wise embedding, projects it to logits for the target and control tracks for a
@@ -165,7 +165,7 @@ class AdditiveMixHead(nn.Module):
         mix_coeff_layer=MixCoeffMLP,
         penalty_layer=MixCoeffPenalty,
     ):
-        """Initializes AdditiveMixHead layer.
+        """Initializes AdditiveMix layer.
 
         Args:
             num_tasks (int): Number of tasks (i.e. eCLIP tracks).
