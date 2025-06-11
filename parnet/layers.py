@@ -90,68 +90,6 @@ class ResConvBlock1D(nn.Module):
 
         return x
 
-
-@gin.configurable()
-class LikeBasenji2ConvBlock(nn.Module):
-    def __init__(self, filters, kernel_size) -> None:
-        super().__init__()
-
-        self.conv1d = nn.LazyConv1d(filters, kernel_size, padding='same')
-        self.batch_norm = nn.BatchNorm1d(filters)
-        self.act = nn.GELU()
-
-    def forward(self, inputs):
-        x = self.conv1d(inputs)
-        x = self.batch_norm(x)
-        x = self.act(x)
-        return x
-
-
-@gin.configurable()
-class LikeBasenji2DilatedResConvBlock(nn.Module):
-    # TODO: Add documentation.
-    def __init__(
-        self,
-        filters=256,
-        kernel_size=5,
-        dropout=0.3,
-        activation=nn.GELU(),
-        dilation=1.0,
-        residual=True,
-    ):
-        super().__init__()
-
-        self.conv1d = nn.LazyConv1d(int(filters / 2), kernel_size, dilation=int(dilation), padding='same')
-        self.conv1d_norm = nn.BatchNorm1d(int(filters / 2))
-
-        self.pointwise = nn.LazyConv1d(filters, kernel_size=1)
-        self.pointwise_norm = nn.BatchNorm1d(filters)
-
-        self.act = activation
-        self.dropout = nn.Dropout1d(dropout) if dropout > 0.0 else None
-        self.residual = residual
-
-    def forward(self, inputs):
-        # conv1d
-        x = self.conv1d(inputs)
-        x = self.conv1d_norm(x)
-        x = self.act(x)
-
-        # pointwise
-        x = self.pointwise(x)
-        x = self.pointwise_norm(x)
-        x = self.act(x)
-
-        if self.dropout is not None:
-            x = self.dropout(x)
-
-        # residual
-        if self.residual:
-            x = inputs + x
-
-        return x
-
-
 @gin.configurable()
 class LinearProjection(nn.Module):
     """Performs a linear projection of the input to the specified number of output channels.
