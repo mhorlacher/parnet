@@ -1,25 +1,12 @@
-import sys
 import logging
 
 import gin
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-import transformers
 
-from sequence_models.convolutional import ByteNet
-from sequence_models.layers import PositionFeedForward
 
 from parnet.utils import sequence_to_onehot
-from parnet.layers import (
-    StemConv1D,
-    LinearProjection,
-    ResConvBlock1D,
-    LikeBasenji2DilatedResConvBlock,
-    LikeBasenji2ConvBlock,
-)
-from parnet.layers import StemConv, ResConvBlock, AdditiveMix
-from parnet.constants import IDX_2_EXPERIMENT
+from parnet.layers import StemConv1D, ResConvBlock1D, AdditiveMixHead
 
 
 @gin.configurable()
@@ -28,12 +15,13 @@ class RBPNet(nn.Module):
 
     def __init__(
         self,
-        num_tasks=None,
-        layers=9,
-        dilation=1.75,
-        body_layer=ResConvBlock1D,
-        head_layer=None,
-        projection_layer=None,
+        num_tasks: int = None,
+        layers: int = 9,
+        dilation: int = 1.75,
+        stem_layer: nn.Module = StemConv1D,
+        body_layer: nn.Module = ResConvBlock1D,
+        head_layer: nn.Module = AdditiveMixHead,
+        embedding_dim: int = 128,
     ):
         """Initializes RBPNet.
 
@@ -49,10 +37,11 @@ class RBPNet(nn.Module):
             # We could infer this from the dataset, but let's keep it explicit for now.
             raise ValueError('num_tasks must be specified in the gin config file.')
 
-        self.stem = StemConv1D()
+        self.stem = stem_layer()
         self.body = nn.Sequential(*[body_layer(dilation=int(dilation**i)) for i in range(layers)])
 
-        self.projection = projection_layer() if projection_layer is not None else None
+        # final linear projection layer to produce sequence embeddings
+        self.projection = nn.LazyConv1d(embedding_dim, kernel_size=1, bias=False, padding='same')
 
         if head_layer is None:
             raise ValueError('head_layer must be specified.')
@@ -71,10 +60,7 @@ class RBPNet(nn.Module):
 
         x = self.stem(inputs['sequence'])
         x = self.body(x)
-
-        if self.projection is not None:
-            # Projection, e.g. for embedding
-            x = self.projection(x)
+        x = self.projection(x)
 
         x = self.head(x)
 
@@ -107,3 +93,9 @@ class RBPNet(nn.Module):
 
         # Predict and remove batch dimension of size 1.
         return self.forward({'sequence': sequence_onehot}, **kwargs)
+
+    def embed_from_sequence(self, sequence, alphabet='ACGT', **kwargs):
+        raise NotImplementedError
+
+    def explain_from_sequence(self, sequence, alphabet='ACGT', **kwargs):
+        raise NotImplementedError
