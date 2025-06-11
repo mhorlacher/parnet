@@ -19,7 +19,7 @@ from parnet.layers import (
     LikeBasenji2ConvBlock,
 )
 from parnet.layers import StemConv, ResConvBlock, AdditiveMix
-from parnet.constants import IDX_2_EXPERIMENT
+from parnet.constants import IDX_TO_EXPERIMENT, EXPERIMENT_TO_IDX
 
 
 @gin.configurable()
@@ -64,12 +64,7 @@ class RBPNet(nn.Module):
         _ = self({'sequence': torch.zeros(2, 4, 100, dtype=torch.float32)})
 
     def forward(self, inputs, to_probs=False, **kwargs):
-        logging.debug(f'Received inputs of type: {type(inputs)}.')
-        logging.debug(
-            f'Predict on sequence inputs with shape {inputs["sequence"].shape} and dtype {inputs["sequence"].dtype}.'
-        )
-
-        x = self.stem(inputs['sequence'])
+        x = self.stem(inputs)
         x = self.body(x)
 
         if self.projection is not None:
@@ -106,7 +101,7 @@ class RBPNet(nn.Module):
         sequence_onehot = torch.unsqueeze(sequence_onehot, dim=0).float()
 
         # Predict and remove batch dimension of size 1.
-        return self.forward({'sequence': sequence_onehot}, **kwargs)
+        return self.forward(sequence_onehot, **kwargs)
 
 
 @gin.configurable()
@@ -377,7 +372,7 @@ class NewRBPNet(nn.Module):
         _ = self({'sequence': torch.zeros(2, 4, 100, dtype=torch.float32)})
 
     def forward(self, inputs, to_probs=False, **kwargs):
-        x = self.stem(inputs['sequence'])
+        x = self.stem(inputs)
         x = self.body(x)
         x = self.projection(x)
         x = self.head(x)
@@ -403,4 +398,4 @@ class NewRBPNet(nn.Module):
         sequence_onehot = torch.unsqueeze(sequence_onehot, dim=0).float()
 
         # Predict and remove batch dimension of size 1.
-        return self.forward({'sequence': sequence_onehot}, **kwargs)
+        return self.forward(sequence_onehot, **kwargs)
