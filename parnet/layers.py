@@ -163,7 +163,7 @@ class AdditiveMix(nn.Module):
         num_tasks,
         head_layer=LinearProjectionHead,
         mix_coeff_layer=MixCoeffMLP,
-        penalty_layer=MixCoeffPenalty,
+        penalty_layer=None,
     ):
         """Initializes AdditiveMix layer.
 
@@ -203,7 +203,23 @@ class AdditiveMix(nn.Module):
         total_logprob = max_logprob + torch.log(
             mix_coeff * torch.exp(target_logprob - max_logprob)
             + (1 - mix_coeff) * torch.exp(control_logprob - max_logprob)
+            + 1e-10  # small constant to avoid numerical issues
         )
+
+        # check for NaN/Inf in total_logprob
+        if torch.isnan(total_logprob).any() or torch.isinf(total_logprob).any():
+            print(
+                f'{target_logprob.min()}, {target_logprob.max()}, {target_logprob.mean()}, ',
+                file=sys.stderr,
+                flush=True,
+            )
+            print(
+                f'{control_logprob.min()}, {control_logprob.max()}, {control_logprob.mean()}, ',
+                file=sys.stderr,
+                flush=True,
+            )
+            print(f'{total_logprob=}, {mix_coeff=}, {target_logprob=}, {control_logprob=}', file=sys.stderr, flush=True)
+            raise ValueError('Logits contain NaN or Inf values.')
 
         return_dict = {
             'target': target_logprob,  # (B, num_tasks, L)

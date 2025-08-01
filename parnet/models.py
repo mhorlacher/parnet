@@ -1,5 +1,6 @@
 import logging
 
+import tqdm
 import gin
 import torch
 import torch.nn as nn
@@ -50,15 +51,10 @@ class RBPNet(nn.Module):
         # Dummy forward pass to initialize weights. Not strictly required, but allows us
         # to print a proper summary of the model with pytorch_lightning and get the correct
         # number of parameters.
-        _ = self({'sequence': torch.zeros(2, 4, 100, dtype=torch.float32)})
+        _ = self(torch.zeros(2, 4, 100, dtype=torch.float32))
 
-    def forward(self, inputs, to_probs=False, **kwargs):
-        logging.debug(f'Received inputs of type: {type(inputs)}.')
-        logging.debug(
-            f'Predict on sequence inputs with shape {inputs["sequence"].shape} and dtype {inputs["sequence"].dtype}.'
-        )
-
-        x = self.stem(inputs['sequence'])
+    def forward(self, sequence: torch.Tensor, to_probs=False, **kwargs):
+        x = self.stem(sequence)
         x = self.body(x)
         x = self.projection(x)
 
@@ -76,7 +72,7 @@ class RBPNet(nn.Module):
 
         return x
 
-    def predict_from_sequence(self, sequence, alphabet='ACGT', **kwargs):
+    def predict_from_sequence(self, sequence: str, alphabet='ACGT', **kwargs):
         """Predicts RBP binding probabilities from a sequence.
 
         Args:
@@ -92,7 +88,16 @@ class RBPNet(nn.Module):
         sequence_onehot = torch.unsqueeze(sequence_onehot, dim=0).float()
 
         # Predict and remove batch dimension of size 1.
-        return self.forward({'sequence': sequence_onehot}, **kwargs)
+        return self.forward(sequence_onehot, **kwargs)
+
+    def mcdrop_from_sequence(self, sequence, n: int = 100, alphabet: str = 'ACGT', **kwargs):
+        self.train()
+        preds = [self.predict_from_sequence(sequence, alphabet=alphabet, **kwargs) for _ in tqdm.tqdm(range(n))]
+
+        return_dict = {}
+        for key in preds[0].keys():
+            return_dict[key] = torch.concat([p[key] for p in preds], dim=0)
+        return return_dict
 
     def embed_from_sequence(self, sequence, alphabet='ACGT', **kwargs):
         raise NotImplementedError
