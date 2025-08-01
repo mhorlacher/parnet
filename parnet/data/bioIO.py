@@ -8,11 +8,14 @@ as pyBigWig are not required for the installation of parnet.
 
 import math
 
-import yaml
+# import yaml
 import numpy as np
-import tensorflow as tf
-import tensorflow_datasets as tfds
+
+# import tensorflow as tf
+# import tensorflow_datasets as tfds
 import pandas as pd
+
+from parnet.utils import sequence_to_onehot
 
 
 # %%
@@ -46,19 +49,19 @@ def sequence2int(sequence, mapping=base2int):
     ]  # TODO: 999 is a hack, should be replaced by something else (e.g. -1?).
 
 
-def sequence2onehot(sequence, mapping=base2int):
-    """Converts a DNA sequence to a one-hot encoded tf.Tensor.
+# def sequence2onehot(sequence, mapping=base2int):
+#     """Converts a DNA sequence to a one-hot encoded tf.Tensor.
 
-    Args:
-        sequence (str): DNA sequence.
-        mapping (dict, optional): Character to integer mapping. Defaults to base2int.
+#     Args:
+#         sequence (str): DNA sequence.
+#         mapping (dict, optional): Character to integer mapping. Defaults to base2int.
 
-    Returns:
-        tf.Tensor: One-hot encoded sequence.
-    """
-    return tf.one_hot(
-        sequence2int(sequence, mapping), depth=4
-    )  # Remove tensorflow dependency, ideally this should use just numpy.
+#     Returns:
+#         tf.Tensor: One-hot encoded sequence.
+#     """
+#     return tf.one_hot(
+#         sequence2int(sequence, mapping), depth=4
+#     )  # Remove tensorflow dependency, ideally this should use just numpy.
 
 
 def mask_noncanonical_bases(sequence):
@@ -124,7 +127,7 @@ class Fasta:
         if self.rt == 'str':
             return sequence
         elif self.rt == 'onehot':
-            return np.array(sequence2onehot(sequence), dtype=np.int8)
+            return np.array(sequence_to_onehot(sequence), dtype=np.int8)
         elif self.rt == 'int':
             return np.array(sequence2int(sequence), dtype=np.int8)
         else:
@@ -216,179 +219,173 @@ class StrandedBigWig:
         return self.values(*args, **kwargs)
 
 
-# %%
-class DataSpec:
-    """Specifies the data layout and assembles file-connectors to generate samples.
+# # %%
+# class DataSpec:
+#     """Specifies the data layout and assembles file-connectors to generate samples.
 
-    Inputs and outputs are specified in a YAML file. The YAML file should have the following structure:
+#     Inputs and outputs are specified in a YAML file. The YAML file should have the following structure:
 
-    inputs:
-        sequence: path/to/fasta
-        outputs:
-        Task_1:
-            eCLIP:
-                - path/to/eclip/counts/forward
-                - path/to/eclip/counts/reverse
-            control:
-                - path/to/control/counts/forward
-                - path/to/control/counts/reverse
-        ...
-        Task_N:
-            eCLIP:
-                - path/to/eclip/counts/forward
-                - path/to/eclip/counts/reverse
-            control:
-                - path/to/control/counts/forward
-                - path/to/control/counts/reverse
+#     inputs:
+#         sequence: path/to/fasta
+#         outputs:
+#         Task_1:
+#             eCLIP:
+#                 - path/to/eclip/counts/forward
+#                 - path/to/eclip/counts/reverse
+#             control:
+#                 - path/to/control/counts/forward
+#                 - path/to/control/counts/reverse
+#         ...
+#         Task_N:
+#             eCLIP:
+#                 - path/to/eclip/counts/forward
+#                 - path/to/eclip/counts/reverse
+#             control:
+#                 - path/to/control/counts/forward
+#                 - path/to/control/counts/reverse
 
-    The YAML specification is then used to initialize Fasta and StrandedBigWig file-connectors, from which
-    samples can be fetch in the specified structure. For efficiency (storage and during training), the
-    extracted 1D bigWig stracks are stacked to two tensors for eCLIP and control, both of the shape (n_tasks, n_positions).
-    """
+#     The YAML specification is then used to initialize Fasta and StrandedBigWig file-connectors, from which
+#     samples can be fetch in the specified structure. For efficiency (storage and during training), the
+#     extracted 1D bigWig stracks are stacked to two tensors for eCLIP and control, both of the shape (n_tasks, n_positions).
+#     """
 
-    def __init__(self, dataspec_yml=None, control=False):
-        self.control = control
+#     def __init__(self, dataspec_yml=None, control=False):
+#         self.control = control
 
-        if dataspec_yml is None:
-            # don't initialize with config (useful for just getting features, tf_signature, etc.)
-            return
+#         if dataspec_yml is None:
+#             # don't initialize with config (useful for just getting features, tf_signature, etc.)
+#             return
 
-        # parse YAML dataspec
-        with open(dataspec_yml) as f:
-            self._dataspec = yaml.load(f, yaml.FullLoader)
-        self.tasks = self._dataspec['outputs'].keys()
+#         # parse YAML dataspec
+#         with open(dataspec_yml) as f:
+#             self._dataspec = yaml.load(f, yaml.FullLoader)
+#         self.tasks = self._dataspec['outputs'].keys()
 
-        # initialize fasta-file connector
-        self._dataspec['inputs']['sequence'] = Fasta(self._dataspec['inputs']['sequence'])
+#         # initialize fasta-file connector
+#         self._dataspec['inputs']['sequence'] = Fasta(self._dataspec['inputs']['sequence'])
 
-        # initialize eCLIP bigWig-file connectors, one for each task
-        for task in self._dataspec['outputs']:
-            self._dataspec['outputs'][task]['eCLIP'] = StrandedBigWig(
-                *self._dataspec['outputs'][task]['eCLIP']
-            )
+#         # initialize eCLIP bigWig-file connectors, one for each task
+#         for task in self._dataspec['outputs']:
+#             self._dataspec['outputs'][task]['eCLIP'] = StrandedBigWig(*self._dataspec['outputs'][task]['eCLIP'])
 
-        # if control counts are available, initialize bigWig-file connectors for controls
-        if control:
-            for task in self._dataspec['outputs']:
-                self._dataspec['outputs'][task]['control'] = StrandedBigWig(
-                    *self._dataspec['outputs'][task]['control']
-                )
+#         # if control counts are available, initialize bigWig-file connectors for controls
+#         if control:
+#             for task in self._dataspec['outputs']:
+#                 self._dataspec['outputs'][task]['control'] = StrandedBigWig(*self._dataspec['outputs'][task]['control'])
 
-    @property
-    def tf_signature(self):
-        """Returns the features of the data in tf.TensorSpec format (required for tf.data.Dataset.from_generator).
+#     @property
+#     def tf_signature(self):
+#         """Returns the features of the data in tf.TensorSpec format (required for tf.data.Dataset.from_generator).
 
-        Returns:
-            dict: Nested dictionary of tf.TensorSpecs.
-        """
+#         Returns:
+#             dict: Nested dictionary of tf.TensorSpecs.
+#         """
 
-        signature = {
-            'meta': {
-                'name': tf.TensorSpec(shape=(), dtype=tf.string),
-            },
-            'inputs': {
-                'sequence': tf.TensorSpec(shape=(None, 4), dtype=tf.int8),
-            },
-            'outputs': {
-                'eCLIP': tf.TensorSpec(shape=(None, None), dtype=tf.float32),
-            },
-        }
-        if self.control:
-            signature['outputs']['control'] = tf.TensorSpec(shape=(None, None), dtype=tf.float32)
-        return signature
+#         signature = {
+#             'meta': {
+#                 'name': tf.TensorSpec(shape=(), dtype=tf.string),
+#             },
+#             'inputs': {
+#                 'sequence': tf.TensorSpec(shape=(None, 4), dtype=tf.int8),
+#             },
+#             'outputs': {
+#                 'eCLIP': tf.TensorSpec(shape=(None, None), dtype=tf.float32),
+#             },
+#         }
+#         if self.control:
+#             signature['outputs']['control'] = tf.TensorSpec(shape=(None, None), dtype=tf.float32)
+#         return signature
 
-    @property
-    def tfds_features(self):
-        """Returns the features of the data in tfds.features.FeaturesDict format.
+#     @property
+#     def tfds_features(self):
+#         """Returns the features of the data in tfds.features.FeaturesDict format.
 
-        Returns:
-            tfds.features.FeatureDict: TFDS features describing the data.
-        """
+#         Returns:
+#             tfds.features.FeatureDict: TFDS features describing the data.
+#         """
 
-        features = {
-            'meta': {
-                'name': tfds.features.Tensor(shape=(), dtype=tf.string),
-            },
-            'inputs': {
-                'sequence': tfds.features.Tensor(shape=(None, None), dtype=tf.int8, encoding='zlib'),
-            },
-            'outputs': {
-                'eCLIP': tfds.features.Tensor(shape=(None, None), dtype=tf.float32, encoding='zlib'),
-            },
-        }
-        if self.control:
-            features['outputs']['control'] = tfds.features.Tensor(
-                shape=(None, None), dtype=tf.float32, encoding='zlib'
-            )
-        features = tfds.features.FeaturesDict(features)
-        return features
+#         features = {
+#             'meta': {
+#                 'name': tfds.features.Tensor(shape=(), dtype=tf.string),
+#             },
+#             'inputs': {
+#                 'sequence': tfds.features.Tensor(shape=(None, None), dtype=tf.int8, encoding='zlib'),
+#             },
+#             'outputs': {
+#                 'eCLIP': tfds.features.Tensor(shape=(None, None), dtype=tf.float32, encoding='zlib'),
+#             },
+#         }
+#         if self.control:
+#             features['outputs']['control'] = tfds.features.Tensor(shape=(None, None), dtype=tf.float32, encoding='zlib')
+#         features = tfds.features.FeaturesDict(features)
+#         return features
 
-    def fetch_sample(self, chrom, start, end, strand, target_size):
-        """Fetches a sample from the data.
+#     def fetch_sample(self, chrom, start, end, strand, target_size):
+#         """Fetches a sample from the data.
 
-        Samples are specified by chrom, start, end and strand. The sequence may also be padded to target_size.
-        Fetching a sample returns a dictionary with the following structure:
+#         Samples are specified by chrom, start, end and strand. The sequence may also be padded to target_size.
+#         Fetching a sample returns a dictionary with the following structure:
 
-        {
-            'meta': {
-                'name': Tensor(shape=(), dtype=string),
-            },
-            'inputs': {
-                'sequence': Tensor(shape=(target_size, 4), dtype=int8),
-            },
-            'outputs': {
-                'eCLIP': Tensor(shape=(n_tasks, target_size), dtype=float32),
-                'control': Tensor(shape=(n_tasks, target_size), dtype=float32),
-            },
-        }
+#         {
+#             'meta': {
+#                 'name': Tensor(shape=(), dtype=string),
+#             },
+#             'inputs': {
+#                 'sequence': Tensor(shape=(target_size, 4), dtype=int8),
+#             },
+#             'outputs': {
+#                 'eCLIP': Tensor(shape=(n_tasks, target_size), dtype=float32),
+#                 'control': Tensor(shape=(n_tasks, target_size), dtype=float32),
+#             },
+#         }
 
-        Args:
-            chrom (str): Chromosome.
-            start (int): Start position (closed).
-            end (int): End position (open).
-            strand (int): Strand ('+' or '-').
-            target_size (int): Target size of the sequence. If the sequence is shorter than target_size, it will be padded.
+#         Args:
+#             chrom (str): Chromosome.
+#             start (int): Start position (closed).
+#             end (int): End position (open).
+#             strand (int): Strand ('+' or '-').
+#             target_size (int): Target size of the sequence. If the sequence is shorter than target_size, it will be padded.
 
-        Returns:
-            dict: Dictionary containing the sample tensors.
-        """
+#         Returns:
+#             dict: Dictionary containing the sample tensors.
+#         """
 
-        sample = {'meta': {}, 'inputs': {}, 'outputs': {}}
+#         sample = {'meta': {}, 'inputs': {}, 'outputs': {}}
 
-        # prepare padding
-        # TODO: Move this to a separate function.
-        size = end - start
-        padding_left = int(np.ceil((target_size - size) / 2))
-        padding_right = int(np.floor((target_size - size) / 2))
+#         # prepare padding
+#         # TODO: Move this to a separate function.
+#         size = end - start
+#         padding_left = int(np.ceil((target_size - size) / 2))
+#         padding_right = int(np.floor((target_size - size) / 2))
 
-        sample['inputs']['sequence'] = self._dataspec['inputs']['sequence'](chrom, start, end, strand)
-        sample['inputs']['sequence'] = tf.pad(
-            sample['inputs']['sequence'],
-            paddings=[[padding_left, padding_right], [0, 0]],
-        )
+#         sample['inputs']['sequence'] = self._dataspec['inputs']['sequence'](chrom, start, end, strand)
+#         sample['inputs']['sequence'] = tf.pad(
+#             sample['inputs']['sequence'],
+#             paddings=[[padding_left, padding_right], [0, 0]],
+#         )
 
-        sample['outputs']['eCLIP'] = np.stack(
-            [self._dataspec['outputs'][task]['eCLIP'](chrom, start, end, strand) for task in self.tasks]
-        )
-        sample['outputs']['eCLIP'] = tf.pad(
-            sample['outputs']['eCLIP'], paddings=[[0, 0], [padding_left, padding_right]]
-        )
-        if self.control:
-            sample['outputs']['control'] = np.stack(
-                [self._dataspec['outputs'][task]['control'](chrom, start, end, strand) for task in self.tasks]
-            )
-            sample['outputs']['control'] = tf.pad(
-                sample['outputs']['control'],
-                paddings=[[0, 0], [padding_left, padding_right]],
-            )
+#         sample['outputs']['eCLIP'] = np.stack([
+#             self._dataspec['outputs'][task]['eCLIP'](chrom, start, end, strand) for task in self.tasks
+#         ])
+#         sample['outputs']['eCLIP'] = tf.pad(
+#             sample['outputs']['eCLIP'], paddings=[[0, 0], [padding_left, padding_right]]
+#         )
+#         if self.control:
+#             sample['outputs']['control'] = np.stack([
+#                 self._dataspec['outputs'][task]['control'](chrom, start, end, strand) for task in self.tasks
+#             ])
+#             sample['outputs']['control'] = tf.pad(
+#                 sample['outputs']['control'],
+#                 paddings=[[0, 0], [padding_left, padding_right]],
+#             )
 
-        # meta/name
-        sample['meta']['name'] = tf.constant(f'{chrom}:{start}-{end}:{strand}', dtype=tf.string)
+#         # meta/name
+#         sample['meta']['name'] = tf.constant(f'{chrom}:{start}-{end}:{strand}', dtype=tf.string)
 
-        # assert padding
-        assert target_size == sample['outputs']['eCLIP'].shape[1] == sample['inputs']['sequence'].shape[0]
+#         # assert padding
+#         assert target_size == sample['outputs']['eCLIP'].shape[1] == sample['inputs']['sequence'].shape[0]
 
-        return sample
+#         return sample
 
-    def __call__(self, *args, **kwargs):
-        return self.fetch_sample(*args, **kwargs)
+#     def __call__(self, *args, **kwargs):
+#         return self.fetch_sample(*args, **kwargs)

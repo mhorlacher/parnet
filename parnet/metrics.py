@@ -32,7 +32,7 @@ class PearsonCorrCoeff(torchmetrics.MeanMetric):
         if self.postproc_fn is not None:
             y_pred = self.postproc_fn(y_pred)
 
-        pcc = pearson_corrcoef(y, y_pred, dim=self.dim)
+        pcc = pearson_corrcoef(y.float(), y_pred.float(), dim=self.dim)
         pcc = torch.nan_to_num(pcc, 0.0)  # replace nan's with 0 (this might underestimate the pcc)
 
         reduced_pcc = self.reduction(pcc)
@@ -58,7 +58,7 @@ class FilteredPearsonCorrCoeff(torchmetrics.MeanMetric):
         if self.postproc_fn is not None:
             y_pred = self.postproc_fn(y_pred)
 
-        pcc = pearson_corrcoef(y, y_pred, dim=self.dim)
+        pcc = pearson_corrcoef(y.float(), y_pred.float(), dim=self.dim)
         mean_pcc = self.compute_mean(pcc, y)
 
         # update (i.e. take mean)

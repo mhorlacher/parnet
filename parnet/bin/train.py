@@ -1,10 +1,10 @@
-# disable tensorflow logs and enable dynamic memory growth (tf is only used for data loading via TFDS)
-from parnet.utils import _disable_tensorflow_logs, _set_tf_dynamic_memory_growth
+# # disable tensorflow logs and enable dynamic memory growth (tf is only used for data loading via TFDS)
+# from parnet.utils import _disable_tensorflow_logs, _set_tf_dynamic_memory_growth
 
-_disable_tensorflow_logs()
-_set_tf_dynamic_memory_growth()
+# _disable_tensorflow_logs()
+# _set_tf_dynamic_memory_growth()
+# TODO: Confirm that we do not need the above code snippet, as we are now using HFDS.
 
-import datetime
 import shutil
 from pathlib import Path
 import warnings
@@ -13,14 +13,11 @@ import logging
 import click
 import gin
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 import torchmetrics
 from torchmetrics import MeanMetric
 
-from parnet.data.datasets import TFDSDataset
-from parnet.losses import MultinomialNLLLossFromLogits
+from parnet.utils import count_trainable_params
 
 
 class LightningModel(pl.LightningModule):
@@ -44,17 +41,6 @@ class LightningModel(pl.LightningModule):
         self.use_control = use_control
 
         self.crop_size = crop_size
-
-        # # loss
-        # self.loss_fn = nn.ModuleDict(
-        #     {
-        #         'TRAIN_total': loss(),
-        #         'VAL_total': loss(),
-        #     }
-        # )
-        # if use_control:
-        #     self.loss_fn['TRAIN_control'] = loss()
-        #     self.loss_fn['VAL_control'] = loss()
         self.loss_fn = loss_fn
 
         # penalty loss
@@ -64,40 +50,36 @@ class LightningModel(pl.LightningModule):
         if metrics is None:
             metrics = {}
 
-        self.train_metrics_losses = torchmetrics.MetricCollection(
-            {
-                'train/loss': torchmetrics.MeanMetric(),
-                'train/loss_eCLIP': torchmetrics.MeanMetric(),
-                'train/loss_SMI': torchmetrics.MeanMetric(),
-                'train/loss_penalty': torchmetrics.MeanMetric(),
-            }
-        )
-        self.train_metrics_eCLIP = torchmetrics.MetricCollection(
-            {'train/' + name + '_eCLIP': metric() for name, metric in metrics.items()}
-        )
+        self.train_metrics_losses = torchmetrics.MetricCollection({
+            'train/loss': torchmetrics.MeanMetric(),
+            'train/loss_eCLIP': torchmetrics.MeanMetric(),
+            'train/loss_SMI': torchmetrics.MeanMetric(),
+            'train/loss_penalty': torchmetrics.MeanMetric(),
+        })
+        self.train_metrics_eCLIP = torchmetrics.MetricCollection({
+            'train/' + name + '_eCLIP': metric() for name, metric in metrics.items()
+        })
         if self.use_control:
-            self.train_metrics_SMI = torchmetrics.MetricCollection(
-                {'train/' + name + '_SMI': metric() for name, metric in metrics.items()}
-            )
+            self.train_metrics_SMI = torchmetrics.MetricCollection({
+                'train/' + name + '_SMI': metric() for name, metric in metrics.items()
+            })
 
-        self.val_metrics_losses = torchmetrics.MetricCollection(
-            {
-                'val/loss': torchmetrics.MeanMetric(),
-                'val/loss_eCLIP': torchmetrics.MeanMetric(),
-                'val/loss_SMI': torchmetrics.MeanMetric(),
-                'val/loss_penalty': torchmetrics.MeanMetric(),
-                'val/mix_coeff': torchmetrics.MeanMetric(),
-                'val/mix_coeff_std-over-exp': torchmetrics.MeanMetric(),
-                'val/mix_coeff_std-over-batch': torchmetrics.MeanMetric(),
-            }
-        )
-        self.val_metrics_eCLIP = torchmetrics.MetricCollection(
-            {'val/' + name + '_eCLIP': metric() for name, metric in metrics.items()}
-        )
+        self.val_metrics_losses = torchmetrics.MetricCollection({
+            'val/loss': torchmetrics.MeanMetric(),
+            'val/loss_eCLIP': torchmetrics.MeanMetric(),
+            'val/loss_SMI': torchmetrics.MeanMetric(),
+            'val/loss_penalty': torchmetrics.MeanMetric(),
+            'val/mix_coeff': torchmetrics.MeanMetric(),
+            'val/mix_coeff_std-over-exp': torchmetrics.MeanMetric(),
+            'val/mix_coeff_std-over-batch': torchmetrics.MeanMetric(),
+        })
+        self.val_metrics_eCLIP = torchmetrics.MetricCollection({
+            'val/' + name + '_eCLIP': metric() for name, metric in metrics.items()
+        })
         if self.use_control:
-            self.val_metrics_SMI = torchmetrics.MetricCollection(
-                {'val/' + name + '_SMI': metric() for name, metric in metrics.items()}
-            )
+            self.val_metrics_SMI = torchmetrics.MetricCollection({
+                'val/' + name + '_SMI': metric() for name, metric in metrics.items()
+            })
 
         # self.metrics = nn.ModuleDict(
         #     {
@@ -157,6 +139,8 @@ class LightningModel(pl.LightningModule):
 
         loss_penalty = torch.tensor(0.0, dtype=torch.float32).to(y_pred['total'].device)
         if 'penalty_loss' in y_pred:
+            # TODO: We probably want to only use the penalty loss for eCLIP samples/tasks that reach the minimum height.
+            logging.debug(f'Using penalty loss: {y_pred["penalty_loss"].shape}, {y_pred["penalty_loss"].mean()}')
             loss_penalty = y_pred['penalty_loss'].mean()
 
         loss = loss_eCLIP + loss_SMI + loss_penalty
@@ -169,19 +153,18 @@ class LightningModel(pl.LightningModule):
         }
 
     def training_step(self, batch, batch_idx=None, **kwargs):
-        inputs, y = batch
-        y_pred = self.forward(inputs)
+        y_pred = self.forward(**batch['inputs'])
 
         # compute and log losses
-        losses = self._compute_loss(y, y_pred, crop_size=self.crop_size)
-        for losss_name in ['loss', 'loss_eCLIP', 'loss_SMI', 'loss_penalty']:
-            self.train_metrics_losses[f'train/{losss_name}'](losses[losss_name])
+        losses = self._compute_loss(batch['outputs'], y_pred, crop_size=self.crop_size)
+        for loss_name in ['loss', 'loss_eCLIP', 'loss_SMI', 'loss_penalty']:
+            self.train_metrics_losses[f'train/{loss_name}'](losses[loss_name])
         self.log_dict(self.train_metrics_losses, prog_bar=True, on_step=True, on_epoch=True)
 
         # compute and log metrics
-        self.train_metrics_eCLIP.update(y['total'], y_pred['total'])
+        self.train_metrics_eCLIP.update(batch['outputs']['total'], y_pred['total'])
         if self.use_control:
-            self.train_metrics_SMI.update(y['control'], y_pred['control'])
+            self.train_metrics_SMI.update(batch['outputs']['control'], y_pred['control'])
 
         return losses['loss']
 
@@ -194,13 +177,12 @@ class LightningModel(pl.LightningModule):
             self.train_metrics_SMI.reset()
 
     def validation_step(self, batch, batch_idx=None, **kwargs):
-        inputs, y = batch
-        y_pred = self.forward(inputs)
+        y_pred = self.forward(**batch['inputs'])
 
         # compute and log losses
-        losses = self._compute_loss(y, y_pred, crop_size=self.crop_size)
-        for losss_name in ['loss', 'loss_eCLIP', 'loss_SMI', 'loss_penalty']:
-            self.val_metrics_losses[f'val/{losss_name}'].update(losses[losss_name])
+        losses = self._compute_loss(batch['outputs'], y_pred, crop_size=self.crop_size)
+        for loss_name in ['loss', 'loss_eCLIP', 'loss_SMI', 'loss_penalty']:
+            self.val_metrics_losses[f'val/{loss_name}'].update(losses[loss_name])
         # keep track of mixing coefficients
         self.val_metrics_losses['val/mix_coeff'].update(y_pred['mix_coeff'])
 
@@ -213,9 +195,9 @@ class LightningModel(pl.LightningModule):
             self.val_metrics_losses['val/mix_coeff_std-over-batch'].update(y_pred['mix_coeff'].std(0).mean())
 
         # compute and log metrics
-        self.val_metrics_eCLIP.update(y['total'], y_pred['total'])
+        self.val_metrics_eCLIP.update(batch['outputs']['total'], y_pred['total'])
         if self.use_control:
-            self.val_metrics_SMI.update(y['control'], y_pred['control'])
+            self.val_metrics_SMI.update(batch['outputs']['control'], y_pred['control'])
 
         return losses['loss']
 
@@ -249,10 +231,10 @@ def train(
     just_print_model,
     output_path,
     n_devices=1,
-    dataset=TFDSDataset,
+    dataset=None,
     model=None,
     loggers=None,
-    loss_fn=MultinomialNLLLossFromLogits,
+    loss_fn=None,
     metrics=None,
     optimizer=torch.optim.AdamW,
     lr_scheduler_cls=None,
@@ -273,14 +255,13 @@ def train(
         crop_size=crop_size,
     )
 
+    print(model)
+    print(f'Trainable parameters: {count_trainable_params(model):,}')
     if just_print_model:
-        print(model)
         exit()
 
     train_loader = DataLoader(dataset(data_path, split='train'), batch_size=batch_size)
-    val_loader = DataLoader(
-        dataset(data_path, split='validation', shuffle=False, keep_in_memory=False), batch_size=batch_size
-    )
+    val_loader = DataLoader(dataset(data_path, split='valid', shuffle=False), batch_size=batch_size)
 
     trainer = pl.Trainer(
         default_root_dir=output_path,

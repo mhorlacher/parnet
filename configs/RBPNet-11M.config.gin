@@ -1,0 +1,58 @@
+import torch
+from pytorch_lightning import loggers
+
+import parnet
+
+train.model = @parnet.models.RBPNet()
+train.loggers = [@loggers.TensorBoardLogger]
+
+train.metrics = {'pcc': @parnet.metrics.PearsonCorrCoeff, 'filtered_pcc': @parnet.metrics.FilteredPearsonCorrCoeff}
+train.batch_size = 128
+train.accumulate_grad_batches = 8
+train.max_epochs = 500
+train.use_control = True
+train.accelerator = 'gpu'
+
+train.log_every_n_steps = 400
+
+train.DataLoader.num_workers = 16
+train.DataLoader.prefetch_factor = 8
+
+train.optimizer = @torch.optim.Adam
+
+# --------------- #
+# --- Dataset --- #
+# --------------- #
+train.dataset = @parnet.data.datasets.ListDataset
+parnet.data.datasets.ListDataset.shuffle = True
+parnet.data.datasets.ListDataset.length = 2_000
+
+# --------------------- #
+# --- Loss Function --- #
+# --------------------- #
+train.loss_fn = @parnet.losses.MultinomialNLLLoss()
+parnet.losses.MultinomialNLLLoss.min_height = 3
+
+# -------------- #
+# --- Layers --- #
+# -------------- #
+
+parnet.models.RBPNet.num_tasks = 223
+parnet.models.RBPNet.layers = 14
+parnet.models.RBPNet.dilation = 1.4
+parnet.models.RBPNet.embedding_dim = 512
+
+parnet.layers.ResConvBlock1D.filters = 512
+parnet.layers.StemConv1D.filters = 512
+
+
+parnet.models.RBPNet.head_layer = @parnet.layers.AdditiveMix
+parnet.layers.AdditiveMix.mix_coeff_layer = @parnet.layers.MixCoeffMLP
+
+parnet.layers.MixCoeffMLP.units = 256
+
+# --------------- #
+# --- Penalty --- #
+# --------------- #
+# parnet.layers.AdditiveMix.penalty_layer = @parnet.layers.MixCoeffPenalty
+# parnet.layers.MixCoeffPenalty.factor = 0.0
