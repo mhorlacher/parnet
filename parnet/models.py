@@ -4,6 +4,7 @@ import tqdm
 import gin
 import torch
 import torch.nn as nn
+import captum
 
 
 from parnet.utils import sequence_to_onehot
@@ -53,7 +54,16 @@ class RBPNet(nn.Module):
         # number of parameters.
         _ = self(torch.zeros(2, 4, 100, dtype=torch.float32))
 
-    def forward(self, sequence: torch.Tensor, to_probs=False, **kwargs):
+    def forward(self, sequence: torch.Tensor, to_probs=False) -> dict[str, torch.Tensor]:
+        """Performs a forward pass through the model, returning logits for each postion and task.
+
+        Args:
+            sequence (torch.Tensor): Batched one-hot encoded sequences of shape (batch_size, num_channels, sequence_length).
+            to_probs (bool, optional): Whether to convert logits to probabilities. Defaults to False.
+
+        Returns:
+            dict[str, torch.Tensor]: A dictionary logits for total, target, control tracks and the mixing coefficient.
+        """
         x = self.stem(sequence)
         x = self.body(x)
         x = self.projection(x)
@@ -63,44 +73,85 @@ class RBPNet(nn.Module):
         if isinstance(x, torch.Tensor):
             x = {'total': x}
 
-        # # Convert logits to probabilities if requested.
-        # if to_probs:
-        #     if isinstance(x, torch.Tensor):
-        #         x = torch.softmax(x, dim=-1)
-        #     else:
-        #         raise NotImplementedError()
-
+        if to_probs:
+            # convert track logits to probabilities
+            x['total'] = x['total'].softmax(dim=-1)
+            if 'target' in x:
+                x['target'] = x['target'].softmax(dim=-1)
+            if 'control' in x:
+                x['control'] = x['control'].softmax(dim=-1)
         return x
 
-    def predict_from_sequence(self, sequence: str, alphabet='ACGT', **kwargs):
+    def predict_from_sequence(self, sequences: str | list[str], to_probs=False):
         """Predicts RBP binding probabilities from a sequence.
 
         Args:
-            sequence (str): Sequence to predict from.
-            alphabet (dict, optional): Alphabet to use for encoding the sequence. Defaults to 'ACGT'.
+            sequence (str): Sequence(s) to predict from.
+            to_probs (bool, optional): Whether to convert logits to probabilities. Defaults to False.
 
         Returns:
             torch.Tensor: Predicted binding probabilities.
         """
 
-        # One-hot encode sequence, add batch dimension and cast to float.
-        sequence_onehot = sequence_to_onehot(sequence, alphabet=alphabet)
-        sequence_onehot = torch.unsqueeze(sequence_onehot, dim=0).float()
+        if isinstance(sequences, str):
+            sequences = [sequences]
 
-        # Predict and remove batch dimension of size 1.
-        return self.forward(sequence_onehot, **kwargs)
+        # one-hot encode sequence(s)
+        sequence_onehot = torch.stack([sequence_to_onehot(s) for s in sequences]).float()
 
-    def mcdrop_from_sequence(self, sequence, n: int = 100, alphabet: str = 'ACGT', **kwargs):
-        self.train()
-        preds = [self.predict_from_sequence(sequence, alphabet=alphabet, **kwargs) for _ in tqdm.tqdm(range(n))]
+        return self.forward(sequence_onehot, to_probs=to_probs)
 
-        return_dict = {}
-        for key in preds[0].keys():
-            return_dict[key] = torch.concat([p[key] for p in preds], dim=0)
-        return return_dict
+    def embed(self, sequence: torch.Tensor, aggregation: str = None):
+        """Returns sequence embeddings.
 
-    def embed_from_sequence(self, sequence, alphabet='ACGT', **kwargs):
-        raise NotImplementedError
+        Args:
+            sequence (torch.Tensor): Batched one-hot encoded sequences.
+            aggregation (str, optional): One of 'mean' or 'center'. Defaults to None.
+        """
+        x = self.stem(sequence)
+        x = self.body(x)
+        x = self.projection(x)
 
-    def explain_from_sequence(self, sequence, alphabet='ACGT', **kwargs):
-        raise NotImplementedError
+        if aggregation is None:
+            return x
+
+        if aggregation == 'mean':
+            return x.mean(dim=-1)
+        elif aggregation == 'center':
+            return x[:, :, x.shape[-1] // 2]
+        else:
+            raise ValueError('aggregation must be one of "mean", "center" or None.')
+
+    def embed_from_sequence(self, sequences: str | list[str], aggregation: str = None):
+        if isinstance(sequences, str):
+            sequences = [sequences]
+
+        # one-hot encode sequence(s)
+        sequence_onehot = torch.stack([sequence_to_onehot(s) for s in sequences]).float()
+
+        return self.embed(sequence_onehot, aggregation=aggregation)
+
+    def explain(self, sequence: torch.Tensor, task_idx: int, track='target'):
+        """Returns attribution maps for the given task and track.
+
+        Args:
+            sequence (torch.Tensor): Batched one-hot encoded sequences of shape (batch_size, num_channels, sequence_length).
+            task_idx (int): Index of the task to explain.
+            track (str, optional): Track to explain. Defaults to 'target'.
+        """
+        # NOTE: In the future we should support explaination for all tasks and tracks at once. 
+
+        def _explain_forward(inputs):
+            pred = self.forward(inputs)[track][:, task_idx, :].softmax(dim=-1)
+            return (pred * pred.detach()).sum(dim=-1)
+
+        return captum.attr.InputXGradient(_explain_forward).attribute(sequence)
+
+    def explain_from_sequence(self, sequences, task_idx: int, track='target'):
+        if isinstance(sequences, str):
+            sequences = [sequences]
+
+        # one-hot encode sequence(s)
+        sequence_onehot = torch.stack([sequence_to_onehot(s) for s in sequences]).float()
+
+        return self.explain(sequence_onehot, task_idx, track=track)
