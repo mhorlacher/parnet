@@ -131,17 +131,23 @@ class LightningModel(pl.LightningModule):
             y = {target: y[target][:, :, crop_size:-crop_size] for target in targets}
             y_pred = {target: y_pred[target][:, :, crop_size:-crop_size] for target in targets}
 
-        loss_eCLIP = self.loss_fn(y['total'], y_pred['total'])
+        loss_eCLIP, min_height_map_eCLIP = self.loss_fn(y['total'], y_pred['total'])
 
         loss_SMI = torch.tensor(0.0, dtype=torch.float32).to(y_pred['total'].device)
         if 'control' in y_pred:
-            loss_SMI = self.loss_fn(y['control'], y_pred['control'])
+            loss_SMI, min_height_map_SMI = self.loss_fn(y['control'], y_pred['control'])
 
         loss_penalty = torch.tensor(0.0, dtype=torch.float32).to(y_pred['total'].device)
         if 'penalty_loss' in y_pred:
             # TODO: We probably want to only use the penalty loss for eCLIP samples/tasks that reach the minimum height.
             logging.debug(f'Using penalty loss: {y_pred["penalty_loss"].shape}, {y_pred["penalty_loss"].mean()}')
-            loss_penalty = y_pred['penalty_loss'].mean()
+
+            # y_pred['penalty_loss'] should be of shape (batch_size, num_tasks)
+            mask = min_height_map_eCLIP
+            if 'control' in y_pred:
+                mask = mask | min_height_map_SMI
+            # only use penalty loss for samples/tasks that reach the minimum height in eCLIP or SMI
+            loss_penalty = (self.penalty_loss(y_pred['penalty_loss']) * mask.float().detach()).mean()
 
         loss = loss_eCLIP + loss_SMI + loss_penalty
 
