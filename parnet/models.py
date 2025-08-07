@@ -139,7 +139,7 @@ class RBPNet(nn.Module):
             task_idx (int): Index of the task to explain.
             track (str, optional): Track to explain. Defaults to 'target'.
         """
-        # NOTE: In the future we should support explaination for all tasks and tracks at once. 
+        # NOTE: In the future we should support explaination for all tasks and tracks at once.
 
         def _explain_forward(inputs):
             pred = self.forward(inputs)[track][:, task_idx, :].softmax(dim=-1)

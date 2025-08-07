@@ -75,4 +75,4 @@ class MultinomialNLLLoss(nn.Module):
             print(f'nll: {nll}', file=sys.stderr, flush=True)
             raise ValueError(f'{nll_avg} is NaN or Inf.')
 
-        return nll_avg
+        return nll_avg, min_height_map
